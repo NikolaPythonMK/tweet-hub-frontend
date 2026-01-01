@@ -223,6 +223,16 @@
   box-shadow: 0 10px 24px rgba(20, 26, 24, 0.08);
 }
 
+.userInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
 .userAvatar {
   width: 46px;
   height: 46px;
@@ -240,6 +250,36 @@
 .userHandle {
   color: var(--ink-muted);
   font-size: 0.85rem;
+}
+
+.unfollowButton {
+  border: 1px solid rgba(199, 61, 58, 0.4);
+  background: rgba(199, 61, 58, 0.08);
+  color: #7d1e1e;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.followBackButton {
+  border: 1px solid transparent;
+  background: var(--ink);
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.unfollowButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.followBackButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .loadMore {

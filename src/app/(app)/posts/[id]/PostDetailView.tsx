@@ -208,6 +208,7 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
   );
 
   useEffect(() => {
+    window.scrollTo(0, 0);
     setReplyTargetId(postId);
     setChildrenByParent({});
     setCollapsedByParent({});

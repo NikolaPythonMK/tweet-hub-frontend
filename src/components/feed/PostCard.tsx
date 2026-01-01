@@ -3,7 +3,7 @@
 import type { MouseEvent } from "react";
 import type { PostView } from "@/lib/api/types";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Bookmark, Heart, MessageCircle, Repeat2 } from "lucide-react";
 import { formatDate } from "@/lib/format";
 import styles from "./PostCard.module.css";
@@ -34,6 +34,7 @@ export default function PostCard({
   showActions = true,
 }: PostCardProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const authorSlug = post.authorUsername ?? post.authorId;
   const handle = post.authorUsername ?? post.authorId.slice(0, 8);
   const displayName = post.authorDisplayName ?? handle;
@@ -77,11 +78,23 @@ export default function PostCard({
     router.push(`/posts/${post.id}`);
   };
 
+  const saveFeedScroll = () => {
+    if (pathname !== "/feed") {
+      return;
+    }
+    sessionStorage.setItem("feed:restore", "1");
+    sessionStorage.setItem("feed:scrollY", String(window.scrollY));
+  };
+
   const cardClassName =
     variant === "thread" ? `${styles.card} ${styles.threadCard}` : styles.card;
 
   return (
-    <article className={cardClassName} onClick={handleCardClick}>
+    <article
+      className={cardClassName}
+      onPointerDown={saveFeedScroll}
+      onClick={handleCardClick}
+    >
       <div className={styles.avatar}>
         {avatarSrc ? (
           <img src={avatarSrc} alt="" className={styles.avatarImage} />

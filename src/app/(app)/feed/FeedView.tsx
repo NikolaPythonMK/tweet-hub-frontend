@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import Link from "next/link";
 import {
@@ -51,6 +51,10 @@ export default function FeedView() {
   const canSubmit = (draft.trim().length > 0 || imageFile) && !posting;
   const [error, setError] = useState("");
   const [pending, setPending] = useState<Set<string>>(new Set());
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const restoreScrollRef = useRef<number | null>(null);
+  const scrollSaveTicking = useRef(false);
+  const cacheHydrated = useRef(false);
 
   const updatePost = useCallback(
     (id: string, updater: (post: PostView) => PostView) => {
@@ -82,13 +86,14 @@ export default function FeedView() {
     [],
   );
 
-  const loadPosts = useCallback(async (reset: boolean) => {
+  const loadPosts = useCallback(async (reset: boolean, cursorOverride?: string | null) => {
     setLoadingPosts(true);
     setError("");
     try {
+      const nextCursor = reset ? undefined : cursorOverride ?? undefined;
       const response = await listFeed({
         limit: 10,
-        cursor: reset ? undefined : cursor ?? undefined,
+        cursor: nextCursor,
       });
       setPosts((prev) => (reset ? response.items : [...prev, ...response.items]));
       setCursor(response.nextCursor ?? null);
@@ -98,14 +103,116 @@ export default function FeedView() {
     } finally {
       setLoadingPosts(false);
     }
-  }, [cursor]);
+  }, []);
 
   useEffect(() => {
     if (!user) {
       return;
     }
-    void loadPosts(true);
+    const restoreKey = "feed:restore";
+    const shouldRestore = sessionStorage.getItem(restoreKey) === "1";
+    const cacheKey = `feed:cache:${user.id}`;
+    if (shouldRestore) {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached) as {
+            posts: PostView[];
+            cursor: string | null;
+            hasNext: boolean;
+          };
+          if (Array.isArray(parsed.posts)) {
+            setPosts(parsed.posts);
+            setCursor(parsed.cursor ?? null);
+            setHasNext(parsed.hasNext ?? false);
+            cacheHydrated.current = true;
+          }
+        } catch {
+          sessionStorage.removeItem(cacheKey);
+        }
+      }
+    }
+    const stored = sessionStorage.getItem("feed:scrollY");
+    if (shouldRestore && stored) {
+      const value = Number(stored);
+      if (!Number.isNaN(value)) {
+        restoreScrollRef.current = value;
+      }
+    }
+    if (!cacheHydrated.current) {
+      void loadPosts(true, null);
+    }
   }, [user, loadPosts]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    const handleScroll = () => {
+      if (scrollSaveTicking.current) {
+        return;
+      }
+      scrollSaveTicking.current = true;
+      requestAnimationFrame(() => {
+        sessionStorage.setItem("feed:scrollY", String(window.scrollY));
+        scrollSaveTicking.current = false;
+      });
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [user]);
+
+  useEffect(() => {
+    const target = restoreScrollRef.current;
+    if (target === null) {
+      return;
+    }
+    requestAnimationFrame(() => {
+      window.scrollTo(0, target);
+      restoreScrollRef.current = null;
+      sessionStorage.removeItem("feed:scrollY");
+      sessionStorage.removeItem("feed:restore");
+    });
+  }, [posts.length]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    if (!posts.length) {
+      return;
+    }
+    const cacheKey = `feed:cache:${user.id}`;
+    const payload = JSON.stringify({
+      posts,
+      cursor,
+      hasNext,
+    });
+    sessionStorage.setItem(cacheKey, payload);
+  }, [cursor, hasNext, posts, user]);
+
+  useEffect(() => {
+    if (!hasNext || loadingPosts) {
+      return;
+    }
+    const node = loadMoreRef.current;
+    if (!node) {
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry || !entry.isIntersecting) {
+          return;
+        }
+        observer.unobserve(node);
+        void loadPosts(false, cursor);
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [cursor, hasNext, loadPosts, loadingPosts]);
 
   useEffect(() => {
     if (!imageFile) {
@@ -395,14 +502,10 @@ export default function FeedView() {
             ))}
           </div>
 
-          {hasNext && (
-            <button
-              className={styles.loadMore}
-              onClick={() => loadPosts(false)}
-              disabled={loadingPosts}
-            >
-              {loadingPosts ? "Loading..." : "Load more"}
-            </button>
+          {(hasNext || loadingPosts) && (
+            <div ref={loadMoreRef} className={styles.loadMoreSentinel}>
+              {loadingPosts ? "Loading more posts..." : "Scroll for more"}
+            </div>
           )}
         </main>
 

@@ -187,6 +187,16 @@
   background: rgba(255, 255, 255, 0.7);
 }
 
+.loadMoreSentinel {
+  align-self: center;
+  padding: 12px 18px;
+  border-radius: 999px;
+  border: 1px dashed rgba(20, 26, 24, 0.2);
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+  background: rgba(255, 255, 255, 0.5);
+}
+
 .trendCard {
   background: #fff;
   border: 1px solid var(--border);

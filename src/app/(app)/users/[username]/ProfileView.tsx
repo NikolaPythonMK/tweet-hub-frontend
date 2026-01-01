@@ -71,6 +71,9 @@ export default function ProfileView({ username }: ProfileViewProps) {
   const [followersHasNext, setFollowersHasNext] = useState(false);
   const [followersLoaded, setFollowersLoaded] = useState(false);
   const [loadingFollowers, setLoadingFollowers] = useState(false);
+  const [followStatusById, setFollowStatusById] = useState<Record<string, boolean>>(
+    {},
+  );
 
   const [following, setFollowing] = useState<User[]>([]);
   const [followingCursor, setFollowingCursor] = useState<string | null>(null);
@@ -195,13 +198,34 @@ export default function ProfileView({ username }: ProfileViewProps) {
         setFollowersCursor(response.nextCursor ?? null);
         setFollowersHasNext(response.hasNext);
         setFollowersLoaded(true);
+        if (isAuthed && isSelf && response.items.length) {
+          const targets = response.items.filter(
+            (item) => item.id !== sessionUser?.id && followStatusById[item.id] === undefined,
+          );
+          if (targets.length) {
+            const results = await Promise.allSettled(
+              targets.map((item) => getFollowStatus(item.id)),
+            );
+            setFollowStatusById((prev) => {
+              const next = { ...prev };
+              results.forEach((result, index) => {
+                const id = targets[index]?.id;
+                if (!id) return;
+                if (result.status === "fulfilled") {
+                  next[id] = result.value.following;
+                }
+              });
+              return next;
+            });
+          }
+        }
       } catch (err) {
         setError(getErrorMessage(err));
       } finally {
         setLoadingFollowers(false);
       }
     },
-    [followersCursor, profile],
+    [followersCursor, followStatusById, isAuthed, isSelf, profile, sessionUser?.id],
   );
 
   const loadFollowing = useCallback(
@@ -243,6 +267,7 @@ export default function ProfileView({ username }: ProfileViewProps) {
     setFollowingCursor(null);
     setFollowingHasNext(false);
     setFollowingLoaded(false);
+    setFollowStatusById({});
     if (sessionLoading) return;
     void loadProfile();
   }, [loadProfile, sessionLoading, username]);
@@ -327,6 +352,46 @@ export default function ProfileView({ username }: ProfileViewProps) {
         }
       }),
     [runAction, updatePost],
+  );
+
+  const handleUnfollowFromList = useCallback(
+    (target: User) =>
+      runAction(`unfollow:${target.id}`, async () => {
+        await unfollowUser(target.id);
+        setFollowing((prev) => prev.filter((item) => item.id !== target.id));
+        setStats((prev) =>
+          prev ? { ...prev, followingCount: Math.max(0, prev.followingCount - 1) } : prev,
+        );
+        setFollowStatusById((prev) => ({ ...prev, [target.id]: false }));
+      }),
+    [runAction],
+  );
+
+  const handleFollowToggleFromFollowers = useCallback(
+    (target: User) =>
+      runAction(`follow:${target.id}`, async () => {
+        const isFollowingTarget = followStatusById[target.id] ?? false;
+        if (isFollowingTarget) {
+          await unfollowUser(target.id);
+          setFollowStatusById((prev) => ({ ...prev, [target.id]: false }));
+          setStats((prev) =>
+            prev ? { ...prev, followingCount: Math.max(0, prev.followingCount - 1) } : prev,
+          );
+          setFollowing((prev) => prev.filter((item) => item.id !== target.id));
+          return;
+        }
+        await followUser(target.id);
+        setFollowStatusById((prev) => ({ ...prev, [target.id]: true }));
+        setStats((prev) =>
+          prev ? { ...prev, followingCount: prev.followingCount + 1 } : prev,
+        );
+        if (followingLoaded) {
+          setFollowing((prev) =>
+            prev.some((item) => item.id === target.id) ? prev : [target, ...prev],
+          );
+        }
+      }),
+    [followStatusById, followingLoaded, runAction],
   );
 
   const handleFollow = async () => {
@@ -621,21 +686,46 @@ export default function ProfileView({ username }: ProfileViewProps) {
                   />
                 )}
                 <div className={styles.userList}>
-                  {followers.map((follower) => (
-                    <Link
-                      key={follower.id}
-                      href={`/users/${follower.username}`}
-                      className={styles.userCard}
-                    >
-                      <div className={styles.userAvatar}>
-                        {follower.displayName.slice(0, 2).toUpperCase()}
+                  {followers.map((follower) => {
+                    const isFollowingBack = followStatusById[follower.id] ?? false;
+                    const isPending =
+                      pending.has(`follow:${follower.id}`) ||
+                      pending.has(`unfollow:${follower.id}`);
+                    return (
+                      <div key={follower.id} className={styles.userCard}>
+                        <Link
+                          href={`/users/${follower.username}`}
+                          className={styles.userInfo}
+                        >
+                          <div className={styles.userAvatar}>
+                            {follower.displayName.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className={styles.userName}>{follower.displayName}</div>
+                            <div className={styles.userHandle}>@{follower.username}</div>
+                          </div>
+                        </Link>
+                        {isSelf && (
+                          <button
+                            className={
+                              isFollowingBack
+                                ? styles.unfollowButton
+                                : styles.followBackButton
+                            }
+                            type="button"
+                            onClick={() => handleFollowToggleFromFollowers(follower)}
+                            disabled={isPending}
+                          >
+                            {isPending
+                              ? "Working..."
+                              : isFollowingBack
+                                ? "Unfollow"
+                                : "Follow back"}
+                          </button>
+                        )}
                       </div>
-                      <div>
-                        <div className={styles.userName}>{follower.displayName}</div>
-                        <div className={styles.userHandle}>@{follower.username}</div>
-                      </div>
-                    </Link>
-                  ))}
+                    );
+                  })}
                 </div>
                 {followersHasNext && (
                   <button
@@ -660,19 +750,32 @@ export default function ProfileView({ username }: ProfileViewProps) {
                 )}
                 <div className={styles.userList}>
                   {following.map((followed) => (
-                    <Link
-                      key={followed.id}
-                      href={`/users/${followed.username}`}
-                      className={styles.userCard}
-                    >
-                      <div className={styles.userAvatar}>
-                        {followed.displayName.slice(0, 2).toUpperCase()}
-                      </div>
-                      <div>
-                        <div className={styles.userName}>{followed.displayName}</div>
-                        <div className={styles.userHandle}>@{followed.username}</div>
-                      </div>
-                    </Link>
+                    <div key={followed.id} className={styles.userCard}>
+                      <Link
+                        href={`/users/${followed.username}`}
+                        className={styles.userInfo}
+                      >
+                        <div className={styles.userAvatar}>
+                          {followed.displayName.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className={styles.userName}>{followed.displayName}</div>
+                          <div className={styles.userHandle}>@{followed.username}</div>
+                        </div>
+                      </Link>
+                      {isSelf && (
+                        <button
+                          className={styles.unfollowButton}
+                          type="button"
+                          onClick={() => handleUnfollowFromList(followed)}
+                          disabled={pending.has(`unfollow:${followed.id}`)}
+                        >
+                          {pending.has(`unfollow:${followed.id}`)
+                            ? "Removing..."
+                            : "Unfollow"}
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
                 {followingHasNext && (
