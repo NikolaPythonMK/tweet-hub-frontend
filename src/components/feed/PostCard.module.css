@@ -14,6 +14,16 @@
   box-shadow: 0 16px 34px rgba(20, 26, 24, 0.12);
 }
 
+.threadCard {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  padding: var(--space-2) 0;
+}
+
+.threadCard:hover {
+  box-shadow: none;
+}
 .avatar {
   width: 48px;
   height: 48px;

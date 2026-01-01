@@ -10,6 +10,7 @@ import styles from "./PostCard.module.css";
 
 type PostCardProps = {
   post: PostView;
+  variant?: "default" | "thread";
   onLike?: (post: PostView) => void;
   onBookmark?: (post: PostView) => void;
   onRepost?: (post: PostView) => void;
@@ -24,6 +25,7 @@ type PostCardProps = {
 
 export default function PostCard({
   post,
+  variant = "default",
   onLike,
   onBookmark,
   onRepost,
@@ -75,8 +77,11 @@ export default function PostCard({
     router.push(`/posts/${post.id}`);
   };
 
+  const cardClassName =
+    variant === "thread" ? `${styles.card} ${styles.threadCard}` : styles.card;
+
   return (
-    <article className={styles.card} onClick={handleCardClick}>
+    <article className={cardClassName} onClick={handleCardClick}>
       <div className={styles.avatar}>
         {avatarSrc ? (
           <img src={avatarSrc} alt="" className={styles.avatarImage} />

@@ -60,10 +60,10 @@
 }
 
 .quoteBlock {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-4);
-  background: #fff;
+  border: none;
+  border-radius: 0;
+  padding: var(--space-2) 0;
+  background: transparent;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -157,10 +157,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-4);
-  background: #fff;
+  border: none;
+  border-radius: 0;
+  padding: var(--space-2) 0;
+  background: transparent;
 }
 
 .composer textarea {
@@ -242,11 +242,38 @@
 }
 
 .replyNode {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding-left: var(--space-3);
-  border-left: 1px solid rgba(20, 26, 24, 0.12);
+}
+
+.replyNested::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 24px;
+  width: 1px;
+  background: rgba(20, 26, 24, 0.16);
+}
+
+.threadRail {
+  position: relative;
+}
+
+.threadRail::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 24px;
+  width: 1px;
+  background: rgba(20, 26, 24, 0.18);
+}
+
+.threadOffset {
+  padding-left: calc(48px + var(--space-3));
 }
 
 .showReplies {

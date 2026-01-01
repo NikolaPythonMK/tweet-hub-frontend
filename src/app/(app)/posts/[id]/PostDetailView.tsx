@@ -455,11 +455,16 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
             return (
               <div
                 key={reply.id}
-                className={styles.replyNode}
+                className={
+                  depth > 0
+                    ? `${styles.replyNode} ${styles.replyNested}`
+                    : styles.replyNode
+                }
                 style={{ marginLeft: `${depth * 18}px` }}
               >
                 <PostCard
                   post={reply}
+                  variant="thread"
                   onLike={isAuthed ? toggleLike : undefined}
                   onBookmark={isAuthed ? toggleBookmark : undefined}
                   onRepost={isAuthed ? toggleRepost : undefined}
@@ -593,18 +598,21 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
         />
       ) : (
         post && (
-          <PostCard
-            post={post}
-            onLike={isAuthed ? toggleLike : undefined}
-            onBookmark={isAuthed ? toggleBookmark : undefined}
-            onRepost={isAuthed ? toggleRepost : undefined}
-            pending={{
-              like: pending.has(`like:${post.id}`),
-              bookmark: pending.has(`bookmark:${post.id}`),
-              repost: pending.has(`repost:${post.id}`),
-            }}
-            showActions={isAuthed}
-          />
+          <div className={styles.threadRail}>
+            <PostCard
+              post={post}
+              variant="thread"
+              onLike={isAuthed ? toggleLike : undefined}
+              onBookmark={isAuthed ? toggleBookmark : undefined}
+              onRepost={isAuthed ? toggleRepost : undefined}
+              pending={{
+                like: pending.has(`like:${post.id}`),
+                bookmark: pending.has(`bookmark:${post.id}`),
+                repost: pending.has(`repost:${post.id}`),
+              }}
+              showActions={isAuthed}
+            />
+          </div>
         )
       )}
 
@@ -619,7 +627,9 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
       )}
 
       {isAuthed && post && (
-        <div className={styles.composeStack}>
+        <div
+          className={`${styles.composeStack} ${styles.threadRail} ${styles.threadOffset}`}
+        >
           <div className={styles.quoteBlock}>
             <button
               type="button"
@@ -779,7 +789,9 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
           <h2>Replies</h2>
           <span>{post?.replyCount ?? 0}</span>
         </div>
-        <div className={styles.replyList}>{renderReplies(postId, 0)}</div>
+        <div className={`${styles.replyList} ${styles.threadRail}`}>
+          {renderReplies(postId, 0)}
+        </div>
       </section>
     </div>
   );
