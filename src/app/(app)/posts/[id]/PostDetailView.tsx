@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -13,12 +13,13 @@ import {
   listFeed,
   listPosts,
   repostPost,
+  uploadPostImage,
   unbookmarkPost,
   unlikePost,
   unrepostPost,
 } from "@/lib/api/posts";
 import { getErrorMessage } from "@/lib/api/client";
-import type { Post, PostView } from "@/lib/api/types";
+import type { Post, PostView, PostVisibility, ReplyPolicy } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/useSession";
 import PostCard from "@/components/feed/PostCard";
 import StatePanel from "@/components/state/StatePanel";
@@ -34,6 +35,21 @@ const emptyFlags = (post: Post): PostView => ({
   bookmarkedByMe: false,
   repostedByMe: false,
 });
+
+const visibilityOptions: { value: PostVisibility; label: string }[] = [
+  { value: "PUBLIC", label: "Public" },
+  { value: "FOLLOWERS", label: "Followers" },
+  { value: "PRIVATE", label: "Private" },
+];
+
+const replyPolicyOptions: { value: ReplyPolicy; label: string }[] = [
+  { value: "EVERYONE", label: "Everyone" },
+  { value: "FOLLOWERS", label: "Followers" },
+  { value: "MENTIONED_ONLY", label: "Mentioned" },
+  { value: "NOBODY", label: "Nobody" },
+];
+
+const maxImageSize = 5 * 1024 * 1024;
 
 export default function PostDetailView({ postId }: PostDetailViewProps) {
   const router = useRouter();
@@ -56,8 +72,19 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
   >({});
   const [loadingPost, setLoadingPost] = useState(true);
   const [replyDraft, setReplyDraft] = useState("");
+  const [replyImageFile, setReplyImageFile] = useState<File | null>(null);
+  const [replyImagePreview, setReplyImagePreview] = useState<string | null>(null);
+  const [replyVisibility, setReplyVisibility] =
+    useState<PostVisibility>("PUBLIC");
+  const [replyPolicy, setReplyPolicy] = useState<ReplyPolicy>("EVERYONE");
   const [replyTargetId, setReplyTargetId] = useState<string | null>(null);
   const [quoteDraft, setQuoteDraft] = useState("");
+  const [quoteImageFile, setQuoteImageFile] = useState<File | null>(null);
+  const [quoteImagePreview, setQuoteImagePreview] = useState<string | null>(null);
+  const [quoteVisibility, setQuoteVisibility] =
+    useState<PostVisibility>("PUBLIC");
+  const [quoteReplyPolicy, setQuoteReplyPolicy] =
+    useState<ReplyPolicy>("EVERYONE");
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [error, setError] = useState("");
@@ -65,7 +92,7 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
   const composerRef = useRef<HTMLFormElement | null>(null);
 
   const isAuthed = !!user;
-  const canReply = isAuthed && replyDraft.trim().length > 0;
+  const canReply = isAuthed && (replyDraft.trim().length > 0 || replyImageFile);
   const replyTarget = replyTargetId ?? postId;
   const replyLabel =
     replyTarget === postId
@@ -126,11 +153,11 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
   }, [isAuthed, postId]);
 
   const loadChildren = useCallback(
-    async (parentId: string, reset: boolean) => {
+    async (parentId: string, reset: boolean, cursorArg?: string | null) => {
       setLoadingByParent((prev) => ({ ...prev, [parentId]: true }));
       setError("");
       try {
-        const cursor = reset ? undefined : cursorByParent[parentId] ?? undefined;
+        const cursor = reset ? undefined : cursorArg ?? undefined;
         if (isAuthed) {
           const response = await listFeed({
             replyToPostId: parentId,
@@ -177,7 +204,7 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
         setLoadingByParent((prev) => ({ ...prev, [parentId]: false }));
       }
     },
-    [cursorByParent, isAuthed],
+    [isAuthed],
   );
 
   useEffect(() => {
@@ -189,12 +216,71 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
     setLoadingByParent({});
     setQuoteOpen(false);
     setQuoteDraft("");
+    setReplyImageFile(null);
+    setQuoteImageFile(null);
     if (sessionLoading) {
       return;
     }
     void loadPost();
-    void loadChildren(postId, true);
+    void loadChildren(postId, true, null);
   }, [loadChildren, loadPost, postId, sessionLoading]);
+
+  useEffect(() => {
+    if (!replyImageFile) {
+      setReplyImagePreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(replyImageFile);
+    setReplyImagePreview(url);
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [replyImageFile]);
+
+  useEffect(() => {
+    if (!quoteImageFile) {
+      setQuoteImagePreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(quoteImageFile);
+    setQuoteImagePreview(url);
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [quoteImageFile]);
+
+  const handleImageChange = (
+    event: ChangeEvent<HTMLInputElement>,
+    setFile: (file: File | null) => void,
+  ) => {
+    const file = event.target.files?.[0] ?? null;
+    if (!file) {
+      setFile(null);
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      setError("Only image files are allowed.");
+      event.target.value = "";
+      setFile(null);
+      return;
+    }
+    if (file.size > maxImageSize) {
+      setError("Image must be 5MB or smaller.");
+      event.target.value = "";
+      setFile(null);
+      return;
+    }
+    setError("");
+    setFile(file);
+  };
+
+  const clearReplyImage = () => {
+    setReplyImageFile(null);
+  };
+
+  const clearQuoteImage = () => {
+    setQuoteImageFile(null);
+  };
 
   const submitReply = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -203,17 +289,31 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
     }
     setError("");
     try {
+      let imageUrl: string | undefined;
+      if (replyImageFile) {
+        const uploaded = await uploadPostImage(replyImageFile);
+        imageUrl = uploaded.url;
+      }
       const created = await createPost({
-        text: replyDraft.trim(),
+        text: replyDraft.trim() || undefined,
         replyToPostId: replyTarget,
+        imageUrl,
+        visibility: replyVisibility,
+        replyPolicy,
       });
-      const mapped = emptyFlags(created);
+      const mapped = {
+        ...emptyFlags(created),
+        authorUsername: user?.username ?? created.authorUsername,
+        authorDisplayName: user?.displayName ?? created.authorDisplayName,
+        authorAvatarUrl: user?.avatarUrl ?? created.authorAvatarUrl,
+      };
       setChildrenByParent((prev) => ({
         ...prev,
         [replyTarget]: [mapped, ...(prev[replyTarget] ?? [])],
       }));
       setCollapsedByParent((prev) => ({ ...prev, [replyTarget]: false }));
       setReplyDraft("");
+      setReplyImageFile(null);
       setReplyTargetId(postId);
       setPost((prev) =>
         prev ? { ...prev, replyCount: prev.replyCount + 1 } : prev,
@@ -238,12 +338,21 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
     setError("");
     try {
       const trimmed = quoteDraft.trim();
+      let imageUrl: string | undefined;
+      if (quoteImageFile) {
+        const uploaded = await uploadPostImage(quoteImageFile);
+        imageUrl = uploaded.url;
+      }
       const created = await createPost({
         quoteOfPostId: postId,
         text: trimmed.length > 0 ? trimmed : undefined,
+        imageUrl,
+        visibility: quoteVisibility,
+        replyPolicy: quoteReplyPolicy,
       });
       setQuoteDraft("");
       setQuoteOpen(false);
+      setQuoteImageFile(null);
       router.push(`/posts/${created.id}`);
     } catch (err) {
       setError(getErrorMessage(err));
@@ -371,7 +480,7 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
                         ...prev,
                         [reply.id]: false,
                       }));
-                      void loadChildren(reply.id, true);
+                      void loadChildren(reply.id, true, null);
                     }}
                     disabled={childLoading}
                   >
@@ -401,7 +510,9 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
                 {childLoaded && !childCollapsed && childHasNext && (
                   <button
                     className={styles.loadMore}
-                    onClick={() => loadChildren(reply.id, false)}
+                    onClick={() =>
+                      loadChildren(reply.id, false, cursorByParent[reply.id] ?? null)
+                    }
                     disabled={childLoading}
                   >
                     {childLoading ? "Loading..." : "Load more replies"}
@@ -416,7 +527,9 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
           {parentId === postId && hasNext && (
             <button
               className={styles.loadMore}
-              onClick={() => loadChildren(parentId, false)}
+              onClick={() =>
+                loadChildren(parentId, false, cursorByParent[parentId] ?? null)
+              }
               disabled={isLoading}
             >
               {isLoading ? "Loading..." : "Load more replies"}
@@ -517,6 +630,56 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
             </button>
             {quoteOpen && (
               <form className={styles.quoteForm} onSubmit={submitQuote}>
+                <div className={styles.composerControls}>
+                  <label className={styles.control}>
+                    <span>Visibility</span>
+                    <select
+                      value={quoteVisibility}
+                      onChange={(event) =>
+                        setQuoteVisibility(event.target.value as PostVisibility)
+                      }
+                    >
+                      {visibilityOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className={styles.control}>
+                    <span>Replies</span>
+                    <select
+                      value={quoteReplyPolicy}
+                      onChange={(event) =>
+                        setQuoteReplyPolicy(event.target.value as ReplyPolicy)
+                      }
+                    >
+                      {replyPolicyOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className={styles.control}>
+                    <span>Image</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) =>
+                        handleImageChange(event, setQuoteImageFile)
+                      }
+                    />
+                  </label>
+                </div>
+                {quoteImagePreview && (
+                  <div className={styles.imagePreview}>
+                    <img src={quoteImagePreview} alt="" />
+                    <button type="button" onClick={clearQuoteImage}>
+                      Remove image
+                    </button>
+                  </div>
+                )}
                 <textarea
                   value={quoteDraft}
                   onChange={(event) => setQuoteDraft(event.target.value)}
@@ -541,6 +704,56 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
                 </button>
               )}
             </div>
+            <div className={styles.composerControls}>
+              <label className={styles.control}>
+                <span>Visibility</span>
+                <select
+                  value={replyVisibility}
+                  onChange={(event) =>
+                    setReplyVisibility(event.target.value as PostVisibility)
+                  }
+                >
+                  {visibilityOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.control}>
+                <span>Replies</span>
+                <select
+                  value={replyPolicy}
+                  onChange={(event) =>
+                    setReplyPolicy(event.target.value as ReplyPolicy)
+                  }
+                >
+                  {replyPolicyOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.control}>
+                <span>Image</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) =>
+                    handleImageChange(event, setReplyImageFile)
+                  }
+                />
+              </label>
+            </div>
+            {replyImagePreview && (
+              <div className={styles.imagePreview}>
+                <img src={replyImagePreview} alt="" />
+                <button type="button" onClick={clearReplyImage}>
+                  Remove image
+                </button>
+              </div>
+            )}
             <textarea
               value={replyDraft}
               onChange={(event) => setReplyDraft(event.target.value)}

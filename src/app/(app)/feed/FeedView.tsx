@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { FormEvent } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import Link from "next/link";
 import {
   bookmarkPost,
@@ -9,16 +9,32 @@ import {
   likePost,
   listFeed,
   repostPost,
+  uploadPostImage,
   unbookmarkPost,
   unlikePost,
   unrepostPost,
 } from "@/lib/api/posts";
 import { getErrorMessage } from "@/lib/api/client";
-import type { PostView } from "@/lib/api/types";
+import type { PostView, PostVisibility, ReplyPolicy } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/useSession";
 import PostCard from "@/components/feed/PostCard";
 import StatePanel from "@/components/state/StatePanel";
 import styles from "./FeedView.module.css";
+
+const visibilityOptions: { value: PostVisibility; label: string }[] = [
+  { value: "PUBLIC", label: "Public" },
+  { value: "FOLLOWERS", label: "Followers" },
+  { value: "PRIVATE", label: "Private" },
+];
+
+const replyPolicyOptions: { value: ReplyPolicy; label: string }[] = [
+  { value: "EVERYONE", label: "Everyone" },
+  { value: "FOLLOWERS", label: "Followers" },
+  { value: "MENTIONED_ONLY", label: "Mentioned" },
+  { value: "NOBODY", label: "Nobody" },
+];
+
+const maxImageSize = 5 * 1024 * 1024;
 
 export default function FeedView() {
   const { user, loading } = useSession();
@@ -27,7 +43,12 @@ export default function FeedView() {
   const [hasNext, setHasNext] = useState(false);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [draft, setDraft] = useState("");
-  const canSubmit = draft.trim().length > 0;
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [visibility, setVisibility] = useState<PostVisibility>("PUBLIC");
+  const [replyPolicy, setReplyPolicy] = useState<ReplyPolicy>("EVERYONE");
+  const [posting, setPosting] = useState(false);
+  const canSubmit = (draft.trim().length > 0 || imageFile) && !posting;
   const [error, setError] = useState("");
   const [pending, setPending] = useState<Set<string>>(new Set());
 
@@ -86,24 +107,79 @@ export default function FeedView() {
     void loadPosts(true);
   }, [user, loadPosts]);
 
-  const submitPost = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!draft.trim()) {
+  useEffect(() => {
+    if (!imageFile) {
+      setImagePreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(imageFile);
+    setImagePreview(url);
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [imageFile]);
+
+  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    if (!file) {
+      setImageFile(null);
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      setError("Only image files are allowed.");
+      event.target.value = "";
+      setImageFile(null);
+      return;
+    }
+    if (file.size > maxImageSize) {
+      setError("Image must be 5MB or smaller.");
+      event.target.value = "";
+      setImageFile(null);
       return;
     }
     setError("");
+    setImageFile(file);
+  };
+
+  const clearImage = () => {
+    setImageFile(null);
+  };
+
+  const submitPost = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!draft.trim() && !imageFile) {
+      return;
+    }
+    setError("");
+    setPosting(true);
     try {
-      const created = await createPost({ text: draft.trim() });
+      let imageUrl: string | undefined;
+      if (imageFile) {
+        const uploaded = await uploadPostImage(imageFile);
+        imageUrl = uploaded.url;
+      }
+      const created = await createPost({
+        text: draft.trim() || undefined,
+        imageUrl,
+        visibility,
+        replyPolicy,
+      });
       const withFlags: PostView = {
         ...created,
         likedByMe: false,
         bookmarkedByMe: false,
         repostedByMe: false,
+        authorUsername: user.username,
+        authorDisplayName: user.displayName,
+        authorAvatarUrl: user.avatarUrl ?? null,
       };
       setPosts((prev) => [withFlags, ...prev]);
       setDraft("");
+      setImageFile(null);
     } catch (err) {
       setError(getErrorMessage(err));
+    } finally {
+      setPosting(false);
     }
   };
 
@@ -229,6 +305,50 @@ export default function FeedView() {
 
         <main className={styles.feed}>
           <form className={styles.composer} onSubmit={submitPost}>
+            <div className={styles.composerControls}>
+              <label className={styles.control}>
+                <span>Visibility</span>
+                <select
+                  value={visibility}
+                  onChange={(event) =>
+                    setVisibility(event.target.value as PostVisibility)
+                  }
+                >
+                  {visibilityOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.control}>
+                <span>Replies</span>
+                <select
+                  value={replyPolicy}
+                  onChange={(event) =>
+                    setReplyPolicy(event.target.value as ReplyPolicy)
+                  }
+                >
+                  {replyPolicyOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.control}>
+                <span>Image</span>
+                <input type="file" accept="image/*" onChange={handleImageChange} />
+              </label>
+            </div>
+            {imagePreview && (
+              <div className={styles.imagePreview}>
+                <img src={imagePreview} alt="" />
+                <button type="button" onClick={clearImage}>
+                  Remove image
+                </button>
+              </div>
+            )}
             <textarea
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
@@ -238,7 +358,7 @@ export default function FeedView() {
             <div className={styles.composerFooter}>
               <span>{draft.trim().length}/280</span>
               <button type="submit" disabled={!canSubmit}>
-                Post
+                {posting ? "Posting..." : "Post"}
               </button>
             </div>
           </form>

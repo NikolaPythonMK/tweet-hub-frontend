@@ -13,9 +13,20 @@ export type UserStats = {
   followingCount: number;
 };
 
+export type PostVisibility = "PUBLIC" | "FOLLOWERS" | "PRIVATE";
+
+export type ReplyPolicy =
+  | "EVERYONE"
+  | "FOLLOWERS"
+  | "MENTIONED_ONLY"
+  | "NOBODY";
+
 export type Post = {
   id: string;
   authorId: string;
+  authorUsername?: string;
+  authorDisplayName?: string;
+  authorAvatarUrl?: string | null;
   text?: string | null;
   imageUrl?: string | null;
   replyToPostId?: string | null;
@@ -23,6 +34,8 @@ export type Post = {
   repostOfPostId?: string | null;
   quoteOfPostId?: string | null;
   createdAt: string;
+  visibility: PostVisibility;
+  replyPolicy: ReplyPolicy;
   likeCount: number;
   replyCount: number;
   repostCount: number;

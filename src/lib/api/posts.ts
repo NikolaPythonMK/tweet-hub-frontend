@@ -1,5 +1,11 @@
 import { apiFetch } from "./client";
-import type { CursorPage, Post, PostView } from "./types";
+import type {
+  CursorPage,
+  Post,
+  PostView,
+  PostVisibility,
+  ReplyPolicy,
+} from "./types";
 
 export type ListPostsParams = {
   cursor?: string;
@@ -18,6 +24,8 @@ export type CreatePostPayload = {
   rootPostId?: string | null;
   repostOfPostId?: string | null;
   quoteOfPostId?: string | null;
+  visibility?: PostVisibility;
+  replyPolicy?: ReplyPolicy;
 };
 
 export async function listPosts(
@@ -84,4 +92,12 @@ export async function repostPost(postId: string): Promise<void> {
 
 export async function unrepostPost(postId: string): Promise<void> {
   await apiFetch(`/posts/${postId}/repost`, { method: "DELETE" });
+}
+
+export async function uploadPostImage(
+  file: File,
+): Promise<{ url: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiFetch("/posts/uploads", { method: "POST", body: formData });
 }

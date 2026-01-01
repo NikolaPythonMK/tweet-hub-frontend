@@ -1,7 +1,9 @@
 "use client";
 
+import type { MouseEvent } from "react";
 import type { PostView } from "@/lib/api/types";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/format";
 import styles from "./PostCard.module.css";
 
@@ -28,20 +30,63 @@ export default function PostCard({
   pending,
   showActions = true,
 }: PostCardProps) {
-  const handle = post.authorId.slice(0, 8);
-  const initials = handle.slice(0, 2).toUpperCase();
+  const router = useRouter();
+  const authorSlug = post.authorUsername ?? post.authorId;
+  const handle = post.authorUsername ?? post.authorId.slice(0, 8);
+  const displayName = post.authorDisplayName ?? handle;
+  const initialsSource = displayName;
+  const initials = initialsSource.slice(0, 2).toUpperCase();
+  const avatarSrc = post.authorAvatarUrl
+    ? post.authorAvatarUrl.startsWith("/")
+      ? `/api${post.authorAvatarUrl}`
+      : post.authorAvatarUrl
+    : null;
   const likeLabel = post.likedByMe ? "Liked" : "Like";
   const bookmarkLabel = post.bookmarkedByMe ? "Bookmarked" : "Bookmark";
   const repostLabel = post.repostedByMe ? "Reposted" : "Repost";
   const canInteract = showActions && onLike && onBookmark && onRepost;
   const canReply = showActions && onReply;
+  const visibilityLabel =
+    post.visibility === "PUBLIC"
+      ? null
+      : post.visibility === "FOLLOWERS"
+        ? "Followers only"
+        : "Private";
+  const replyLabel =
+    post.replyPolicy === "EVERYONE"
+      ? null
+      : post.replyPolicy === "FOLLOWERS"
+        ? "Replies: Followers"
+        : post.replyPolicy === "MENTIONED_ONLY"
+          ? "Replies: Mentioned"
+          : "Replies: Nobody";
+  const imageSrc = post.imageUrl
+    ? post.imageUrl.startsWith("/")
+      ? `/api${post.imageUrl}`
+      : post.imageUrl
+    : null;
+
+  const handleCardClick = (event: MouseEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement;
+    if (target.closest("a, button, input, textarea, select, label")) {
+      return;
+    }
+    router.push(`/posts/${post.id}`);
+  };
 
   return (
-    <article className={styles.card}>
-      <div className={styles.avatar}>{initials}</div>
+    <article className={styles.card} onClick={handleCardClick}>
+      <div className={styles.avatar}>
+        {avatarSrc ? (
+          <img src={avatarSrc} alt="" className={styles.avatarImage} />
+        ) : (
+          initials
+        )}
+      </div>
       <div className={styles.content}>
         <div className={styles.meta}>
-          <Link className={styles.handle} href={`/users/${post.authorId}`}>
+          <span className={styles.displayName}>{displayName}</span>
+          <Link className={styles.handle} href={`/users/${encodeURIComponent(authorSlug)}`}>
             @{handle}
           </Link>
           <span className={styles.dot} />
@@ -53,18 +98,22 @@ export default function PostCard({
             <Link href={`/posts/${post.replyToPostId}`}>post</Link>
           </div>
         )}
-        {post.text && <p className={styles.text}>{post.text}</p>}
-        {post.imageUrl && (
-          <div className={styles.media}>
-            <div className={styles.mediaPlaceholder}>
-              <span>image</span>
-            </div>
+        {(visibilityLabel || replyLabel) && (
+          <div className={styles.badges}>
+            {visibilityLabel && <span className={styles.badge}>{visibilityLabel}</span>}
+            {replyLabel && <span className={styles.badge}>{replyLabel}</span>}
           </div>
         )}
+        {post.text && <p className={styles.text}>{post.text}</p>}
         {post.quoteOfPostId && (
           <div className={styles.quoteContext}>
             <span>Quoted post</span>
             <Link href={`/posts/${post.quoteOfPostId}`}>View</Link>
+          </div>
+        )}
+        {post.imageUrl && (
+          <div className={styles.media}>
+            {imageSrc && <img src={imageSrc} alt="" loading="lazy" />}
           </div>
         )}
         {canInteract && (
