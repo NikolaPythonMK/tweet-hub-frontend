@@ -1,0 +1,231 @@
+.page {
+  min-height: 100vh;
+  padding: var(--space-6) clamp(24px, 6vw, 72px) var(--space-7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 220px;
+  gap: var(--space-5);
+}
+
+.sidebar,
+.rightRail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.profileCard {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-3);
+  box-shadow: 0 14px 30px rgba(20, 26, 24, 0.08);
+}
+
+.avatarLarge {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: #f3eee5;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+}
+
+.name {
+  font-weight: 600;
+}
+
+.handle {
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+
+.profileMeta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+}
+
+.sideNote {
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: rgba(42, 157, 143, 0.12);
+  border: 1px solid rgba(42, 157, 143, 0.2);
+}
+
+.sideNote h4 {
+  margin-bottom: var(--space-2);
+}
+
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.composer {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: var(--space-4);
+  box-shadow: 0 14px 30px rgba(20, 26, 24, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.composer textarea {
+  border: none;
+  resize: vertical;
+  min-height: 120px;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.composer textarea:focus {
+  outline: none;
+}
+
+.composerFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+}
+
+.composerFooter button {
+  background: var(--ink);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.composerFooter button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.feedList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.loadMore {
+  align-self: center;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.trendCard {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  box-shadow: 0 14px 30px rgba(20, 26, 24, 0.08);
+}
+
+.trendCard ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+}
+
+.trendCard li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.trendCard button {
+  align-self: flex-start;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.guest {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-7);
+}
+
+.guestCard {
+  max-width: 420px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+
+.guestCard h1 {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  margin-bottom: var(--space-3);
+}
+
+.guestCard p {
+  color: var(--ink-muted);
+  margin-bottom: var(--space-4);
+}
+
+.guestActions {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: center;
+}
+
+.primary {
+  background: var(--ink);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.secondary {
+  border: 1px solid var(--border);
+  padding: 10px 18px;
+  border-radius: 999px;
+}
+
+@media (max-width: 1024px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .rightRail {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 640px) {
+  .guestActions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
