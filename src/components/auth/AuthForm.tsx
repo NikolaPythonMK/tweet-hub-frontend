@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { login, register } from "@/lib/api/auth";
 import { getErrorMessage } from "@/lib/api/client";
 import { useSession } from "@/lib/auth/useSession";
@@ -15,7 +14,7 @@ type AuthFormProps = {
 
 export default function AuthForm({ mode }: AuthFormProps) {
   const router = useRouter();
-  const { user, loading: sessionLoading } = useSession();
+  const { user, loading: sessionLoading, setUser, refresh } = useSession();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
@@ -53,19 +52,19 @@ export default function AuthForm({ mode }: AuthFormProps) {
     setError("");
     setLoading(true);
     try {
-      if (isRegister) {
-        await register({
-          username: form.username.trim(),
-          displayName: form.displayName.trim(),
-          email: form.email.trim(),
-          password: form.password,
-        });
-      } else {
-        await login({
-          identifier: form.identifier.trim(),
-          password: form.password,
-        });
-      }
+      const response = isRegister
+        ? await register({
+            username: form.username.trim(),
+            displayName: form.displayName.trim(),
+            email: form.email.trim(),
+            password: form.password,
+          })
+        : await login({
+            identifier: form.identifier.trim(),
+            password: form.password,
+          });
+      setUser(response.user);
+      await refresh();
       router.push("/feed");
     } catch (err) {
       setError(getErrorMessage(err));
@@ -92,15 +91,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
 
   return (
     <form className={styles.form} onSubmit={submit}>
-      <div className={styles.header}>
-        <h1>{isRegister ? "Create your account" : "Welcome back"}</h1>
-        <p>
-          {isRegister
-            ? "Set up a clean profile and start a focused feed."
-            : "Log in to keep the conversation moving."}
-        </p>
-      </div>
-
+      <h1 className={styles.title}>{isRegister ? "Create account" : "Log in"}</h1>
       {isRegister && (
         <>
           <label className={styles.field}>
@@ -108,7 +99,6 @@ export default function AuthForm({ mode }: AuthFormProps) {
             <input
               value={form.username}
               onChange={(event) => updateField("username")(event.target.value)}
-              placeholder="short and memorable"
               autoComplete="username"
               autoCapitalize="none"
               disabled={isBusy}
@@ -122,7 +112,6 @@ export default function AuthForm({ mode }: AuthFormProps) {
               onChange={(event) =>
                 updateField("displayName")(event.target.value)
               }
-              placeholder="the name you show"
               autoComplete="name"
               disabled={isBusy}
               required
@@ -134,7 +123,6 @@ export default function AuthForm({ mode }: AuthFormProps) {
               type="email"
               value={form.email}
               onChange={(event) => updateField("email")(event.target.value)}
-              placeholder="you@example.com"
               autoComplete="email"
               autoCapitalize="none"
               disabled={isBusy}
@@ -150,7 +138,6 @@ export default function AuthForm({ mode }: AuthFormProps) {
           <input
             value={form.identifier}
             onChange={(event) => updateField("identifier")(event.target.value)}
-            placeholder="you@example.com"
             autoComplete="username"
             autoCapitalize="none"
             disabled={isBusy}
@@ -165,15 +152,11 @@ export default function AuthForm({ mode }: AuthFormProps) {
           type="password"
           value={form.password}
           onChange={(event) => updateField("password")(event.target.value)}
-          placeholder="min. 8 characters"
           autoComplete={isRegister ? "new-password" : "current-password"}
           disabled={isBusy}
           minLength={8}
           required
         />
-        {isRegister && !passwordValid && (
-          <span className={styles.helper}>Use at least 8 characters.</span>
-        )}
       </label>
 
       {error && (
@@ -186,12 +169,6 @@ export default function AuthForm({ mode }: AuthFormProps) {
         {loading ? "Working..." : isRegister ? "Create account" : "Log in"}
       </button>
 
-      <p className={styles.footer}>
-        {isRegister ? "Already have an account?" : "New to Tweet Hub?"}{" "}
-        <Link href={isRegister ? "/login" : "/register"}>
-          {isRegister ? "Log in" : "Create one"}
-        </Link>
-      </p>
     </form>
   );
 }

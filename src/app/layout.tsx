@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, Space_Grotesk } from "next/font/google";
+import { SessionProvider } from "@/lib/auth/session-context";
 import "./globals.css";
 
 const display = Fraunces({
@@ -25,7 +26,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${display.variable} ${sans.variable}`}>
-        {children}
+        <SessionProvider>{children}</SessionProvider>
       </body>
     </html>
   );

@@ -1,34 +1,10 @@
-import { useEffect, useState } from "react";
-import { me } from "../api/auth";
-import type { User } from "../api/types";
+import { useContext } from "react";
+import { SessionContext } from "./session-context";
 
 export function useSession() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let active = true;
-    me()
-      .then((response) => {
-        if (active) {
-          setUser(response.user);
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setUser(null);
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  return { user, setUser, loading };
+  const context = useContext(SessionContext);
+  if (!context) {
+    throw new Error("useSession must be used within SessionProvider.");
+  }
+  return context;
 }

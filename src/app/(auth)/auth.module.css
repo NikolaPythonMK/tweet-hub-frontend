@@ -5,84 +5,11 @@
   padding: var(--space-7) var(--space-5);
 }
 
-.shell {
-  width: min(100%, 980px);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 420px);
-  gap: var(--space-6);
-  padding: var(--space-6);
-  border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(10px);
-}
-
-.side {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.brand {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-family: var(--font-display);
-  font-size: 1.4rem;
-}
-
-.brandMark {
-  width: 14px;
-  height: 14px;
-  border-radius: 4px;
-  background: var(--accent);
-}
-
-.side h2 {
-  font-family: var(--font-display);
-  font-size: 2.2rem;
-  line-height: 1.1;
-}
-
-.side p {
-  color: var(--ink-muted);
-  line-height: 1.6;
-}
-
-.highlights {
-  display: grid;
-  gap: var(--space-3);
-}
-
-.highlightCard {
-  padding: var(--space-4);
-  border-radius: var(--radius-md);
-  background: linear-gradient(135deg, rgba(240, 109, 59, 0.15), rgba(42, 157, 143, 0.12));
-  border: 1px solid rgba(240, 109, 59, 0.2);
-}
-
-.highlightCard span {
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  color: var(--ink-muted);
-}
-
-.highlightCard h4 {
-  margin-top: var(--space-2);
-  font-size: 1.1rem;
-}
-
 .formWrap {
+  width: min(100%, 420px);
   background: #fff;
   border-radius: var(--radius-md);
   padding: var(--space-5);
   border: 1px solid var(--border);
-}
-
-@media (max-width: 900px) {
-  .shell {
-    grid-template-columns: 1fr;
-  }
+  box-shadow: var(--shadow);
 }

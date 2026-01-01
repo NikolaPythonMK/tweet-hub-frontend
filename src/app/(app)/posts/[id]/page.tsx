@@ -1,11 +1,12 @@
 import PostDetailView from "./PostDetailView";
 
 type PostDetailPageProps = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
-export default function PostDetailPage({ params }: PostDetailPageProps) {
-  return <PostDetailView postId={params.id} />;
+export default async function PostDetailPage({ params }: PostDetailPageProps) {
+  const { id } = await params;
+  return <PostDetailView postId={id} />;
 }

@@ -1,11 +1,12 @@
 import ProfileView from "./ProfileView";
 
 type UserProfilePageProps = {
-  params: {
+  params: Promise<{
     username: string;
-  };
+  }>;
 };
 
-export default function UserProfilePage({ params }: UserProfilePageProps) {
-  return <ProfileView username={params.username} />;
+export default async function UserProfilePage({ params }: UserProfilePageProps) {
+  const { username } = await params;
+  return <ProfileView username={username} />;
 }

@@ -38,10 +38,15 @@ export default function AppHeader() {
   }, [pathname, user]);
 
   const handleLogout = async () => {
-    await logout();
-    setUser(null);
-    setUnreadCount(0);
-    router.push("/");
+    try {
+      await logout();
+    } catch {
+      // Ignore logout errors; clear local session regardless.
+    } finally {
+      setUser(null);
+      setUnreadCount(0);
+      router.push("/");
+    }
   };
 
   const initials = useMemo(() => {
@@ -49,7 +54,9 @@ export default function AppHeader() {
     return user.displayName.slice(0, 2).toUpperCase();
   }, [user]);
 
-  const profileHref = user ? `/users/${user.username}` : "/login";
+  const profileHref = user
+    ? `/users/${encodeURIComponent(user.username || user.id)}`
+    : "/login";
   const brandHref = user ? "/feed" : "/";
 
   return (

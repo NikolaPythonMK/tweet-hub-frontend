@@ -403,7 +403,7 @@ export default function ProfileView({ username }: ProfileViewProps) {
     <div className={styles.page}>
       <header className={styles.nav}>
         <Link href="/feed" className={styles.back}>
-          <- Back to feed
+          {"<- Back to feed"}
         </Link>
         <div className={styles.navMeta}>Profile</div>
       </header>

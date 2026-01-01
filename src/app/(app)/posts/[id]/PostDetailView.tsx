@@ -462,7 +462,7 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
     <div className={styles.page}>
       <header className={styles.nav}>
         <Link href="/feed" className={styles.back}>
-          <- Back to feed
+          {"<- Back to feed"}
         </Link>
         <div className={styles.navMeta}>
           <span>Thread</span>
