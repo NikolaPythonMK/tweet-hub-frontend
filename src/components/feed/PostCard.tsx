@@ -4,6 +4,7 @@ import type { MouseEvent } from "react";
 import type { PostView } from "@/lib/api/types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Bookmark, Heart, MessageCircle, Repeat2 } from "lucide-react";
 import { formatDate } from "@/lib/format";
 import styles from "./PostCard.module.css";
 
@@ -124,9 +125,11 @@ export default function PostCard({
               onClick={() => onLike(post)}
               disabled={pending?.like}
               aria-pressed={post.likedByMe}
+              aria-label={likeLabel}
             >
-              <span>{post.likeCount}</span>
-              <span>{likeLabel}</span>
+              <Heart className={styles.actionIcon} aria-hidden="true" />
+              <span className={styles.actionCount}>{post.likeCount}</span>
+              <span className="sr-only">{likeLabel}</span>
             </button>
             <button
               type="button"
@@ -134,9 +137,11 @@ export default function PostCard({
               onClick={() => onRepost(post)}
               disabled={pending?.repost}
               aria-pressed={post.repostedByMe}
+              aria-label={repostLabel}
             >
-              <span>{post.repostCount}</span>
-              <span>{repostLabel}</span>
+              <Repeat2 className={styles.actionIcon} aria-hidden="true" />
+              <span className={styles.actionCount}>{post.repostCount}</span>
+              <span className="sr-only">{repostLabel}</span>
             </button>
             <button
               type="button"
@@ -144,16 +149,20 @@ export default function PostCard({
               onClick={() => onBookmark(post)}
               disabled={pending?.bookmark}
               aria-pressed={post.bookmarkedByMe}
+              aria-label={bookmarkLabel}
             >
-              <span>{bookmarkLabel}</span>
+              <Bookmark className={styles.actionIcon} aria-hidden="true" />
+              <span className="sr-only">{bookmarkLabel}</span>
             </button>
             {canReply && (
               <button
                 type="button"
                 className={styles.actionButton}
                 onClick={() => onReply?.(post)}
+                aria-label="Reply"
               >
-                <span>Reply</span>
+                <MessageCircle className={styles.actionIcon} aria-hidden="true" />
+                <span className="sr-only">Reply</span>
               </button>
             )}
           </div>

@@ -34,8 +34,10 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: 10px 16px;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.6);
@@ -44,8 +46,11 @@
 }
 
 .badge {
-  min-width: 22px;
-  height: 22px;
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 20px;
+  height: 20px;
   border-radius: 999px;
   background: var(--accent);
   color: #fff;
@@ -77,6 +82,11 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.actionIcon {
+  width: 18px;
+  height: 18px;
 }
 
 .ghost {

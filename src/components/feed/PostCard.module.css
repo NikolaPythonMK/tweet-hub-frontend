@@ -135,9 +135,7 @@
   color: var(--ink);
   border-radius: 999px;
   padding: 6px 12px;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  font-size: 0.75rem;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -160,6 +158,16 @@
   background: #f6e7c5;
   border-color: #e6c893;
   color: #5c3f10;
+}
+
+.actionIcon {
+  width: 16px;
+  height: 16px;
+}
+
+.actionCount {
+  font-weight: 600;
+  font-size: 0.78rem;
 }
 
 .stats {

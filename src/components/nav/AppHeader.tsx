@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { getUnreadNotificationsCount } from "@/lib/api/notifications";
 import { logout } from "@/lib/api/auth";
 import { useSession } from "@/lib/auth/useSession";
+import { Bell, Bookmark } from "lucide-react";
 import styles from "./AppHeader.module.css";
 
 export default function AppHeader() {
@@ -69,10 +70,12 @@ export default function AppHeader() {
         {user ? (
           <>
             <Link href="/bookmarks" className={styles.actionLink}>
-              <span>Bookmarks</span>
+              <Bookmark className={styles.actionIcon} aria-hidden="true" />
+              <span className="sr-only">Bookmarks</span>
             </Link>
             <Link href="/notifications" className={styles.actionLink}>
-              <span>Notifications</span>
+              <Bell className={styles.actionIcon} aria-hidden="true" />
+              <span className="sr-only">Notifications</span>
               {unreadCount > 0 && (
                 <span className={styles.badge}>
                   {unreadCount > 99 ? "99+" : unreadCount}
