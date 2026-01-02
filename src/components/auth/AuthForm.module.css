@@ -25,7 +25,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 12px 14px;
-  background: #fff;
+  background: var(--card);
   font-size: 1rem;
 }
 
@@ -54,12 +54,12 @@
   border: 1px dashed var(--border);
   text-align: center;
   color: var(--ink-muted);
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--card-soft);
 }
 
 .submit {
   background: var(--ink);
-  color: #fff;
+  color: var(--text-on-accent);
   padding: 14px 18px;
   border-radius: 999px;
   font-weight: 600;
@@ -76,3 +76,4 @@
   transform: translateY(-1px);
   box-shadow: 0 14px 24px rgba(28, 34, 32, 0.2);
 }
+

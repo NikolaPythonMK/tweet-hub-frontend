@@ -1,7 +1,7 @@
 .panel {
   border: 1px dashed var(--border);
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--card-strong);
   box-shadow: 0 12px 24px rgba(20, 26, 24, 0.08);
   padding: var(--space-5);
   display: grid;
@@ -84,7 +84,7 @@
 .actions a,
 .actions button {
   border: 1px solid var(--border);
-  background: #fff;
+  background: var(--card);
   padding: 10px 16px;
   border-radius: 999px;
   font-weight: 600;
@@ -93,7 +93,7 @@
 .actions a[data-variant="primary"],
 .actions button[data-variant="primary"] {
   background: var(--ink);
-  color: #fff;
+  color: var(--text-on-accent);
   border-color: transparent;
 }
 
@@ -139,3 +139,4 @@
     transform: translateX(220%);
   }
 }
+

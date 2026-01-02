@@ -5,7 +5,7 @@
   padding: var(--space-4);
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
-  background: #fff;
+  background: var(--card);
   box-shadow: 0 12px 28px rgba(20, 26, 24, 0.08);
   cursor: pointer;
 }
@@ -28,11 +28,12 @@
   width: 48px;
   height: 48px;
   border-radius: 14px;
-  background: #f1ece3;
+  background: var(--avatar-bg);
   display: grid;
   place-items: center;
   font-weight: 600;
   overflow: hidden;
+  color: var(--avatar-fg);
 }
 
 .avatarImage {
@@ -81,7 +82,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: var(--space-3);
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--card-muted);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -123,7 +124,7 @@
   border-radius: var(--radius-sm);
   overflow: hidden;
   border: 1px solid var(--border);
-  background: #fff;
+  background: var(--card);
 }
 
 .repostMedia img {
@@ -207,7 +208,7 @@
 
 .actionButton {
   border: 1px solid var(--border);
-  background: #fbf8f2;
+  background: var(--card-soft);
   color: var(--ink);
   border-radius: 999px;
   padding: 6px 12px;
@@ -220,7 +221,7 @@
 }
 
 .actionButton:hover {
-  background: #f3ede3;
+  background: var(--card-strong);
   transform: translateY(-1px);
 }
 
@@ -231,9 +232,9 @@
 }
 
 .active {
-  background: #f6e7c5;
-  border-color: #e6c893;
-  color: #5c3f10;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-on-accent);
 }
 
 .actionIcon {
@@ -261,3 +262,4 @@
   letter-spacing: 0.08em;
   font-size: 0.7rem;
 }
+

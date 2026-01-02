@@ -41,7 +41,7 @@
 
 .primary {
   background: var(--ink);
-  color: #fff;
+  color: var(--text-on-accent);
   padding: 12px 22px;
   border-radius: 999px;
   font-weight: 600;
@@ -53,3 +53,4 @@
   padding: 12px 22px;
   border-radius: 999px;
 }
+

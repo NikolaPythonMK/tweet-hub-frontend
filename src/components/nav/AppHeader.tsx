@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { getUnreadNotificationsCount } from "@/lib/api/notifications";
 import { logout } from "@/lib/api/auth";
 import { useSession } from "@/lib/auth/useSession";
-import { Bell, Bookmark } from "lucide-react";
+import { Bell, Bookmark, Moon, Sun } from "lucide-react";
 import styles from "./AppHeader.module.css";
 
 export default function AppHeader() {
@@ -14,6 +14,12 @@ export default function AppHeader() {
   const router = useRouter();
   const pathname = usePathname();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [themeMode, setThemeMode] = useState<"system" | "user">("system");
+  const [themeReady, setThemeReady] = useState(false);
+
+  const THEME_KEY = "theme";
+  const THEME_MODE_KEY = "theme:mode";
 
   useEffect(() => {
     if (!user) {
@@ -37,6 +43,62 @@ export default function AppHeader() {
       active = false;
     };
   }, [pathname, user]);
+
+  useEffect(() => {
+    const storedTheme = localStorage.getItem(THEME_KEY);
+    const storedMode = localStorage.getItem(THEME_MODE_KEY);
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const isUserMode = storedMode === "user";
+    if (isUserMode && (storedTheme === "light" || storedTheme === "dark")) {
+      setTheme(storedTheme);
+      setThemeMode("user");
+      document.documentElement.dataset.theme = storedTheme;
+    } else {
+      const initialTheme = prefersDark ? "dark" : "light";
+      setTheme(initialTheme);
+      setThemeMode("system");
+      document.documentElement.dataset.theme = initialTheme;
+    }
+    setThemeReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!themeReady) {
+      return;
+    }
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem(THEME_KEY, theme);
+    localStorage.setItem(THEME_MODE_KEY, themeMode);
+  }, [theme, themeMode, themeReady]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleChange = (event: MediaQueryListEvent) => {
+      if (themeMode === "user") {
+        return;
+      }
+      setTheme(event.matches ? "dark" : "light");
+      setThemeMode("system");
+    };
+    media.addEventListener("change", handleChange);
+    return () => media.removeEventListener("change", handleChange);
+  }, [themeMode]);
+
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== THEME_KEY && event.key !== THEME_MODE_KEY) {
+        return;
+      }
+      const storedTheme = localStorage.getItem(THEME_KEY);
+      const storedMode = localStorage.getItem(THEME_MODE_KEY);
+      if (storedTheme === "light" || storedTheme === "dark") {
+        setTheme(storedTheme);
+      }
+      setThemeMode(storedMode === "user" ? "user" : "system");
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -64,6 +126,10 @@ export default function AppHeader() {
     ? `/users/${encodeURIComponent(user.username || user.id)}`
     : "/login";
   const brandHref = "/feed";
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+    setThemeMode("user");
+  };
 
   return (
     <header className={styles.header}>
@@ -72,6 +138,18 @@ export default function AppHeader() {
         <span>Tweet Hub</span>
       </Link>
       <div className={styles.actions}>
+        <button
+          type="button"
+          className={styles.actionLink}
+          onClick={toggleTheme}
+          aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+        >
+          {theme === "dark" ? (
+            <Sun className={styles.actionIcon} aria-hidden="true" />
+          ) : (
+            <Moon className={styles.actionIcon} aria-hidden="true" />
+          )}
+        </button>
         {user ? (
           <>
             <Link href="/bookmarks" className={styles.actionLink}>
