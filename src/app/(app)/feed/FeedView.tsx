@@ -51,6 +51,7 @@ export default function FeedView() {
   const canSubmit = (draft.trim().length > 0 || imageFile) && !posting;
   const [error, setError] = useState("");
   const [pending, setPending] = useState<Set<string>>(new Set());
+  const [viewBumpId, setViewBumpId] = useState<string | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const restoreScrollRef = useRef<number | null>(null);
   const scrollSaveTicking = useRef(false);
@@ -139,6 +140,7 @@ export default function FeedView() {
         restoreScrollRef.current = value;
       }
     }
+    setViewBumpId(sessionStorage.getItem("feed:viewBumpId"));
     if (!cacheHydrated.current) {
       void loadPosts(true, null);
     }
@@ -174,6 +176,29 @@ export default function FeedView() {
       sessionStorage.removeItem("feed:restore");
     });
   }, [posts.length]);
+
+  useEffect(() => {
+    if (!viewBumpId || posts.length === 0) {
+      return;
+    }
+    const bumpViewCount = (value: PostView["viewCount"]) => {
+      const raw = typeof value === "string" ? value : String(value ?? 0);
+      try {
+        return (BigInt(raw || "0") + 1n).toString();
+      } catch {
+        return String((Number(raw) || 0) + 1);
+      }
+    };
+    setPosts((prev) =>
+      prev.map((post) =>
+        post.id === viewBumpId
+          ? { ...post, viewCount: bumpViewCount(post.viewCount) }
+          : post,
+      ),
+    );
+    setViewBumpId(null);
+    sessionStorage.removeItem("feed:viewBumpId");
+  }, [posts.length, viewBumpId]);
 
   useEffect(() => {
     if (!user) {

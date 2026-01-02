@@ -41,6 +41,18 @@ export type Post = {
   repostCount: number;
   quoteCount: number;
   viewCount: string;
+  repost?: PostRepost | null;
+};
+
+export type PostRepost = {
+  id: string;
+  authorId: string;
+  authorUsername?: string;
+  authorDisplayName?: string;
+  authorAvatarUrl?: string | null;
+  text?: string | null;
+  imageUrl?: string | null;
+  createdAt: string;
 };
 
 export type PostView = Post & {

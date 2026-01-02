@@ -69,6 +69,16 @@ export default function PostCard({
       ? `/api${post.imageUrl}`
       : post.imageUrl
     : null;
+  const repost = post.repost ?? null;
+  const repostHandle = repost
+    ? repost.authorUsername ?? repost.authorId.slice(0, 8)
+    : "";
+  const repostDisplayName = repost ? repost.authorDisplayName ?? repostHandle : "";
+  const repostImageSrc = repost?.imageUrl
+    ? repost.imageUrl.startsWith("/")
+      ? `/api${repost.imageUrl}`
+      : repost.imageUrl
+    : null;
 
   const handleCardClick = (event: MouseEvent<HTMLElement>) => {
     const target = event.target as HTMLElement;
@@ -84,6 +94,7 @@ export default function PostCard({
     }
     sessionStorage.setItem("feed:restore", "1");
     sessionStorage.setItem("feed:scrollY", String(window.scrollY));
+    sessionStorage.setItem("feed:viewBumpId", post.id);
   };
 
   const cardClassName =
@@ -124,6 +135,31 @@ export default function PostCard({
           </div>
         )}
         {post.text && <p className={styles.text}>{post.text}</p>}
+        {repost && (
+          <div className={styles.repostBlock}>
+            <div className={styles.repostMeta}>
+              <span className={styles.repostLabel}>Reposted</span>
+              <span className={styles.repostName}>{repostDisplayName}</span>
+              <Link
+                className={styles.repostHandle}
+                href={`/users/${encodeURIComponent(repost.authorUsername ?? repost.authorId)}`}
+              >
+                @{repostHandle}
+              </Link>
+              <span className={styles.dot} />
+              <time className={styles.time}>{formatDate(repost.createdAt)}</time>
+            </div>
+            {repost.text && <p className={styles.repostText}>{repost.text}</p>}
+            {repostImageSrc && (
+              <div className={styles.repostMedia}>
+                <img src={repostImageSrc} alt="" loading="lazy" />
+              </div>
+            )}
+            <Link className={styles.repostLink} href={`/posts/${repost.id}`}>
+              View original
+            </Link>
+          </div>
+        )}
         {post.quoteOfPostId && (
           <div className={styles.quoteContext}>
             <span>Quoted post</span>

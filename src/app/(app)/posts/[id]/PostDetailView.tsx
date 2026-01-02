@@ -90,6 +90,7 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
   const [error, setError] = useState("");
   const [pending, setPending] = useState<Set<string>>(new Set());
   const composerRef = useRef<HTMLFormElement | null>(null);
+  const loadKeyRef = useRef<string | null>(null);
 
   const isAuthed = !!user;
   const canReply = isAuthed && (replyDraft.trim().length > 0 || replyImageFile);
@@ -208,6 +209,14 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
   );
 
   useEffect(() => {
+    if (sessionLoading) {
+      return;
+    }
+    const loadKey = `${postId}:${isAuthed ? user?.id ?? "auth" : "anon"}`;
+    if (loadKeyRef.current === loadKey) {
+      return;
+    }
+    loadKeyRef.current = loadKey;
     window.scrollTo(0, 0);
     setReplyTargetId(postId);
     setChildrenByParent({});
@@ -219,12 +228,9 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
     setQuoteDraft("");
     setReplyImageFile(null);
     setQuoteImageFile(null);
-    if (sessionLoading) {
-      return;
-    }
     void loadPost();
     void loadChildren(postId, true, null);
-  }, [loadChildren, loadPost, postId, sessionLoading]);
+  }, [isAuthed, loadChildren, loadPost, postId, sessionLoading, user?.id]);
 
   useEffect(() => {
     if (!replyImageFile) {
