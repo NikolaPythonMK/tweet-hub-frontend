@@ -4,6 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { listNotifications, markNotificationRead } from "@/lib/api/notifications";
+import {
+  Bell,
+  Heart,
+  MessageCircle,
+  Repeat2,
+  Quote,
+  UserPlus,
+} from "lucide-react";
 import { getErrorMessage } from "@/lib/api/client";
 import type { Notification } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/useSession";
@@ -20,6 +28,18 @@ const notificationLabel: Record<Notification["type"], string> = {
   REPOST: "reposted your post",
   QUOTE: "quoted your post",
   MENTION: "mentioned you",
+};
+
+const notificationIcon: Record<
+  Notification["type"],
+  React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>
+> = {
+  LIKE: Heart,
+  REPLY: MessageCircle,
+  FOLLOW: UserPlus,
+  REPOST: Repeat2,
+  QUOTE: Quote,
+  MENTION: Bell,
 };
 
 export default function NotificationsView() {
@@ -74,7 +94,9 @@ export default function NotificationsView() {
     try {
       const updated = await markNotificationRead(notification.id);
       setItems((prev) =>
-        prev.map((item) => (item.id === updated.id ? updated : item)),
+        prev.map((item) =>
+          item.id === updated.id ? { ...item, ...updated, actor: updated.actor ?? item.actor } : item,
+        ),
       );
     } catch (err) {
       setError(getErrorMessage(err));
@@ -196,7 +218,18 @@ export default function NotificationsView() {
           {items.map((notification) => {
             const isUnread = !notification.readAt;
             const label = notificationLabel[notification.type];
-            const handle = notification.actorId.slice(0, 8);
+            const Icon = notificationIcon[notification.type];
+            const handle =
+              notification.actor?.username ?? notification.actorId.slice(0, 8);
+            const displayName =
+              notification.actor?.displayName ?? notification.actorId.slice(0, 8);
+            const initialsSource = notification.actor?.displayName ?? handle;
+            const avatarLabel = initialsSource.slice(0, 2).toUpperCase();
+            const avatarUrl = notification.actor?.avatarUrl
+              ? notification.actor.avatarUrl.startsWith("/")
+                ? `/api${notification.actor.avatarUrl}`
+                : notification.actor.avatarUrl
+              : null;
             return (
               <div
                 key={notification.id}
@@ -207,16 +240,28 @@ export default function NotificationsView() {
                   type="button"
                   onClick={() => handleOpen(notification)}
                 >
-                  <div className={styles.avatar}>{handle.slice(0, 2).toUpperCase()}</div>
+                  <div className={styles.avatar}>
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="" className={styles.avatarImage} />
+                    ) : (
+                      avatarLabel
+                    )}
+                  </div>
                   <div className={styles.content}>
                     <div className={styles.titleRow}>
-                      <span className={styles.handle}>@{handle}</span>
+                      <span className={styles.handle}>{displayName}</span>
+                      <span className={styles.handleMuted}>@{handle}</span>
                       <span className={styles.dot} />
                       <span className={styles.time}>
                         {formatDate(notification.createdAt)}
                       </span>
                     </div>
-                    <div className={styles.body}>{label}</div>
+                    <div className={styles.body}>
+                      <span className={styles.typeIcon}>
+                        <Icon aria-hidden="true" />
+                      </span>
+                      {label}
+                    </div>
                   </div>
                 </button>
                 {isUnread && (

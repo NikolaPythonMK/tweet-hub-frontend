@@ -13,8 +13,8 @@ export async function listNotifications(
   const search = new URLSearchParams();
   if (params.cursor) search.set("cursor", params.cursor);
   if (params.limit) search.set("limit", String(params.limit));
-  if (params.unreadOnly !== undefined) {
-    search.set("unreadOnly", String(params.unreadOnly));
+  if (params.unreadOnly) {
+    search.set("unreadOnly", "true");
   }
   const query = search.toString();
   return apiFetch(`/notifications${query ? `?${query}` : ""}`, { method: "GET" });

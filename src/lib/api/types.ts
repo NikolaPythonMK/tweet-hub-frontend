@@ -89,4 +89,10 @@ export type Notification = {
   postId?: string | null;
   readAt?: string | null;
   createdAt: string;
+  actor?: {
+    id: string;
+    username: string;
+    displayName: string;
+    avatarUrl?: string | null;
+  };
 };

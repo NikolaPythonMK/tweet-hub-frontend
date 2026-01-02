@@ -58,7 +58,7 @@ export default function AppHeader() {
   const profileHref = user
     ? `/users/${encodeURIComponent(user.username || user.id)}`
     : "/login";
-  const brandHref = user ? "/feed" : "/";
+  const brandHref = "/feed";
 
   return (
     <header className={styles.header}>
