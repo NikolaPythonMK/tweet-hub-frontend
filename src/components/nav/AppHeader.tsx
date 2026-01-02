@@ -54,6 +54,11 @@ export default function AppHeader() {
     if (!user) return "??";
     return user.displayName.slice(0, 2).toUpperCase();
   }, [user]);
+  const avatarSrc = user?.avatarUrl
+    ? user.avatarUrl.startsWith("/")
+      ? `/api${user.avatarUrl}`
+      : user.avatarUrl
+    : null;
 
   const profileHref = user
     ? `/users/${encodeURIComponent(user.username || user.id)}`
@@ -87,8 +92,8 @@ export default function AppHeader() {
               className={styles.profile}
               aria-label="Profile"
             >
-              {user.avatarUrl ? (
-                <img src={user.avatarUrl} alt="" className={styles.avatarImage} />
+              {avatarSrc ? (
+                <img src={avatarSrc} alt="" className={styles.avatarImage} />
               ) : (
                 <span className={styles.avatar}>{initials}</span>
               )}

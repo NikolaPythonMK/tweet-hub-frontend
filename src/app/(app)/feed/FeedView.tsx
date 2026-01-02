@@ -418,7 +418,15 @@ export default function FeedView() {
         <aside className={styles.sidebar}>
           <div className={styles.profileCard}>
             <div className={styles.avatarLarge}>
-              {user.displayName.slice(0, 2).toUpperCase()}
+              {user.avatarUrl ? (
+                <img
+                  src={user.avatarUrl.startsWith("/") ? `/api${user.avatarUrl}` : user.avatarUrl}
+                  alt=""
+                  className={styles.avatarImage}
+                />
+              ) : (
+                user.displayName.slice(0, 2).toUpperCase()
+              )}
             </div>
             <div>
               <div className={styles.name}>{user.displayName}</div>

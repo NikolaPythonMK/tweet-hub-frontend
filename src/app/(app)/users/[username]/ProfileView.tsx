@@ -20,6 +20,7 @@ import {
   getUserStats,
   listFollowers,
   listFollowing,
+  uploadAvatar,
   unfollowUser,
   updateProfile,
 } from "@/lib/api/users";
@@ -57,8 +58,9 @@ export default function ProfileView({ username }: ProfileViewProps) {
   const [profileForm, setProfileForm] = useState({
     displayName: "",
     bio: "",
-    avatarUrl: "",
   });
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
 
   const [posts, setPosts] = useState<PostView[]>([]);
@@ -90,6 +92,11 @@ export default function ProfileView({ username }: ProfileViewProps) {
     if (!profile) return "??";
     return profile.displayName.slice(0, 2).toUpperCase();
   }, [profile]);
+  const avatarSrc = profile?.avatarUrl
+    ? profile.avatarUrl.startsWith("/")
+      ? `/api${profile.avatarUrl}`
+      : profile.avatarUrl
+    : null;
 
   const canSaveProfile =
     profileForm.displayName.trim().length > 0 && !savingProfile;
@@ -132,7 +139,6 @@ export default function ProfileView({ username }: ProfileViewProps) {
       setProfileForm({
         displayName: response.user.displayName ?? "",
         bio: response.user.bio ?? "",
-        avatarUrl: response.user.avatarUrl ?? "",
       });
       if (sessionUser && response.user.id !== sessionUser.id) {
         const status = await getFollowStatus(response.user.id);
@@ -256,6 +262,8 @@ export default function ProfileView({ username }: ProfileViewProps) {
     setIsFollowing(false);
     setEditing(false);
     setSavingProfile(false);
+    setAvatarFile(null);
+    setAvatarPreview(null);
     setPosts([]);
     setPostsCursor(null);
     setPostsHasNext(false);
@@ -279,6 +287,18 @@ export default function ProfileView({ username }: ProfileViewProps) {
     setPostsHasNext(false);
     void loadPosts(true);
   }, [loadPosts, profile, sessionLoading]);
+
+  useEffect(() => {
+    if (!avatarFile) {
+      setAvatarPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(avatarFile);
+    setAvatarPreview(url);
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [avatarFile]);
 
   useEffect(() => {
     if (!profile) return;
@@ -434,11 +454,16 @@ export default function ProfileView({ username }: ProfileViewProps) {
       const response = await updateProfile({
         displayName: profileForm.displayName.trim(),
         bio: profileForm.bio.trim() || null,
-        avatarUrl: profileForm.avatarUrl.trim() || null,
       });
-      setProfile(response.user);
-      setSessionUser(response.user);
+      let nextUser = response.user;
+      if (avatarFile) {
+        const uploaded = await uploadAvatar(avatarFile);
+        nextUser = uploaded.user;
+      }
+      setProfile(nextUser);
+      setSessionUser(nextUser);
       setEditing(false);
+      setAvatarFile(null);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -484,7 +509,13 @@ export default function ProfileView({ username }: ProfileViewProps) {
         profile && (
           <>
             <section className={styles.profileCard}>
-              <div className={styles.avatar}>{avatarLabel}</div>
+              <div className={styles.avatar}>
+                {avatarSrc ? (
+                  <img src={avatarSrc} alt="" className={styles.avatarImage} />
+                ) : (
+                  avatarLabel
+                )}
+              </div>
               <div className={styles.identity}>
                 <h1 className={styles.name}>{profile.displayName}</h1>
                 <p className={styles.handle}>@{profile.username}</p>
@@ -553,15 +584,33 @@ export default function ProfileView({ username }: ProfileViewProps) {
                   <label className={styles.field}>
                     <span>Avatar URL</span>
                     <input
-                      value={profileForm.avatarUrl}
-                      onChange={(event) =>
-                        setProfileForm((prev) => ({
-                          ...prev,
-                          avatarUrl: event.target.value,
-                        }))
-                      }
-                      placeholder="https://"
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0] ?? null;
+                        if (!file) {
+                          setAvatarFile(null);
+                          return;
+                        }
+                        if (!file.type.startsWith("image/")) {
+                          setError("Only image files are allowed.");
+                          event.target.value = "";
+                          setAvatarFile(null);
+                          return;
+                        }
+                        if (file.size > 5 * 1024 * 1024) {
+                          setError("Image must be 5MB or smaller.");
+                          event.target.value = "";
+                          setAvatarFile(null);
+                          return;
+                        }
+                        setError("");
+                        setAvatarFile(file);
+                      }}
                     />
+                    {avatarPreview && (
+                      <img src={avatarPreview} alt="" className={styles.avatarPreview} />
+                    )}
                   </label>
                 </div>
                 <div className={styles.editorActions}>
@@ -572,8 +621,9 @@ export default function ProfileView({ username }: ProfileViewProps) {
                       setProfileForm({
                         displayName: profile.displayName ?? "",
                         bio: profile.bio ?? "",
-                        avatarUrl: profile.avatarUrl ?? "",
                       });
+                      setAvatarFile(null);
+                      setAvatarPreview(null);
                       setEditing(false);
                     }}
                   >

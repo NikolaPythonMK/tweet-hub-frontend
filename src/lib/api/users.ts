@@ -69,3 +69,11 @@ export async function updateProfile(payload: {
 }): Promise<{ user: User }> {
   return apiFetch("/users/me", { method: "PATCH", json: payload });
 }
+
+export async function uploadAvatar(
+  file: File,
+): Promise<{ user: User }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiFetch("/users/me/avatar", { method: "POST", body: formData });
+}
