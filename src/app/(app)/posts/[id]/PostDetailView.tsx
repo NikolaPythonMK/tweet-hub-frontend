@@ -21,6 +21,7 @@ import {
 import { getErrorMessage } from "@/lib/api/client";
 import type { Post, PostView, PostVisibility, ReplyPolicy } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/useSession";
+import { useInfiniteScroll } from "@/lib/hooks/useInfiniteScroll";
 import PostCard from "@/components/feed/PostCard";
 import StatePanel from "@/components/state/StatePanel";
 import styles from "./PostDetailView.module.css";
@@ -255,6 +256,32 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
       URL.revokeObjectURL(url);
     };
   }, [quoteImageFile]);
+  const observeLoadMore = useInfiniteScroll<HTMLDivElement>({
+    enabled: true,
+    deps: [cursorByParent, hasNextByParent, loadingByParent, childrenByParent],
+    onIntersect: (target) => {
+      const parentId = target.dataset.parentId;
+      if (!parentId) {
+        return;
+      }
+      const isLoading = loadingByParent[parentId] ?? false;
+      const hasNext = hasNextByParent[parentId] ?? false;
+      if (!hasNext || isLoading) {
+        return;
+      }
+      void loadChildren(parentId, false, cursorByParent[parentId] ?? null);
+    },
+  });
+
+  const registerLoadMoreRef = useCallback(
+    (parentId: string) => (node: HTMLDivElement | null) => {
+      if (node) {
+        node.dataset.parentId = parentId;
+      }
+      observeLoadMore(node);
+    },
+    [observeLoadMore],
+  );
 
   const handleImageChange = (
     event: ChangeEvent<HTMLInputElement>,
@@ -519,16 +546,10 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
                   <div className={styles.emptyReplies}>No replies yet.</div>
                 )}
                 {childLoaded && !childCollapsed && renderReplies(reply.id, depth + 1)}
-                {childLoaded && !childCollapsed && childHasNext && (
-                  <button
-                    className={styles.loadMore}
-                    onClick={() =>
-                      loadChildren(reply.id, false, cursorByParent[reply.id] ?? null)
-                    }
-                    disabled={childLoading}
-                  >
-                    {childLoading ? "Loading..." : "Load more replies"}
-                  </button>
+                {childLoaded && !childCollapsed && (childHasNext || childLoading) && (
+                  <div ref={registerLoadMoreRef(reply.id)} className="loadMoreSentinel">
+                    {childLoading ? "Loading more replies..." : "Scroll for more replies"}
+                  </div>
                 )}
               </div>
             );
@@ -536,16 +557,10 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
           {parentId === postId && hasLoaded && children.length === 0 && !isLoading && (
             <div className={styles.emptyReplies}>No replies yet.</div>
           )}
-          {parentId === postId && hasNext && (
-            <button
-              className={styles.loadMore}
-              onClick={() =>
-                loadChildren(parentId, false, cursorByParent[parentId] ?? null)
-              }
-              disabled={isLoading}
-            >
-              {isLoading ? "Loading..." : "Load more replies"}
-            </button>
+          {parentId === postId && (hasNext || isLoading) && (
+            <div ref={registerLoadMoreRef(parentId)} className="loadMoreSentinel">
+              {isLoading ? "Loading more replies..." : "Scroll for more replies"}
+            </div>
           )}
         </div>
       );
@@ -559,6 +574,7 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
       loadingByParent,
       pending,
       postId,
+      registerLoadMoreRef,
       toggleBookmark,
       toggleLike,
       toggleRepost,

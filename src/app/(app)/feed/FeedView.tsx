@@ -17,6 +17,7 @@ import {
 import { getErrorMessage } from "@/lib/api/client";
 import type { PostView, PostVisibility, ReplyPolicy } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/useSession";
+import { useInfiniteScroll } from "@/lib/hooks/useInfiniteScroll";
 import PostCard from "@/components/feed/PostCard";
 import StatePanel from "@/components/state/StatePanel";
 import styles from "./FeedView.module.css";
@@ -52,7 +53,6 @@ export default function FeedView() {
   const [error, setError] = useState("");
   const [pending, setPending] = useState<Set<string>>(new Set());
   const [viewBumpId, setViewBumpId] = useState<string | null>(null);
-  const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const restoreScrollRef = useRef<number | null>(null);
   const scrollSaveTicking = useRef(false);
   const cacheHydrated = useRef(false);
@@ -216,28 +216,13 @@ export default function FeedView() {
     sessionStorage.setItem(cacheKey, payload);
   }, [cursor, hasNext, posts, user]);
 
-  useEffect(() => {
-    if (!hasNext || loadingPosts) {
-      return;
-    }
-    const node = loadMoreRef.current;
-    if (!node) {
-      return;
-    }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        if (!entry || !entry.isIntersecting) {
-          return;
-        }
-        observer.unobserve(node);
-        void loadPosts(false, cursor);
-      },
-      { rootMargin: "200px" },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [cursor, hasNext, loadPosts, loadingPosts]);
+  const observeLoadMore = useInfiniteScroll<HTMLDivElement>({
+    enabled: !!user && hasNext && !loadingPosts,
+    deps: [cursor, hasNext, loadingPosts],
+    onIntersect: () => {
+      void loadPosts(false, cursor);
+    },
+  });
 
   useEffect(() => {
     if (!imageFile) {
@@ -536,7 +521,7 @@ export default function FeedView() {
           </div>
 
           {(hasNext || loadingPosts) && (
-            <div ref={loadMoreRef} className={styles.loadMoreSentinel}>
+            <div ref={observeLoadMore} className="loadMoreSentinel">
               {loadingPosts ? "Loading more posts..." : "Scroll for more"}
             </div>
           )}

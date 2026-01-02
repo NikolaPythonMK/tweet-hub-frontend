@@ -15,6 +15,7 @@ import {
 } from "@/lib/api/posts";
 import type { Bookmark, PostView } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/useSession";
+import { useInfiniteScroll } from "@/lib/hooks/useInfiniteScroll";
 import PostCard from "@/components/feed/PostCard";
 import StatePanel from "@/components/state/StatePanel";
 import styles from "./BookmarksView.module.css";
@@ -93,6 +94,14 @@ export default function BookmarksView() {
     setHasNext(false);
     void loadBookmarks(true, null);
   }, [loadBookmarks, sessionLoading, user]);
+
+  const observeLoadMore = useInfiniteScroll<HTMLDivElement>({
+    enabled: !!user && hasNext && !loading,
+    deps: [cursor, hasNext, loading, posts.length],
+    onIntersect: () => {
+      void loadBookmarks(false, cursor);
+    },
+  });
 
   const toggleLike = useCallback(
     (target: PostView) =>
@@ -241,14 +250,10 @@ export default function BookmarksView() {
         </div>
       )}
 
-      {hasNext && (
-        <button
-          className={styles.loadMore}
-          onClick={() => loadBookmarks(false, cursor)}
-          disabled={loading}
-        >
-          {loading ? "Loading..." : "Load more"}
-        </button>
+      {(hasNext || loading) && posts.length > 0 && (
+        <div ref={observeLoadMore} className="loadMoreSentinel">
+          {loading ? "Loading more bookmarks..." : "Scroll for more"}
+        </div>
       )}
     </div>
   );

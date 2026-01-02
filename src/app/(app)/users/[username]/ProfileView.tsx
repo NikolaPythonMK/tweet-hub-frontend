@@ -27,6 +27,7 @@ import {
 import { getErrorMessage } from "@/lib/api/client";
 import type { Post, PostView, User, UserStats } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/useSession";
+import { useInfiniteScroll } from "@/lib/hooks/useInfiniteScroll";
 import PostCard from "@/components/feed/PostCard";
 import StatePanel from "@/components/state/StatePanel";
 import styles from "./ProfileView.module.css";
@@ -309,6 +310,30 @@ export default function ProfileView({ username }: ProfileViewProps) {
       void loadFollowing(true);
     }
   }, [followersLoaded, followingLoaded, loadFollowers, loadFollowing, profile, tab]);
+
+  const observePostsLoadMore = useInfiniteScroll<HTMLDivElement>({
+    enabled: tab === "posts" && postsHasNext && !loadingPosts,
+    deps: [postsCursor, postsHasNext, loadingPosts, tab, posts.length],
+    onIntersect: () => {
+      void loadPosts(false, postsCursor);
+    },
+  });
+
+  const observeFollowersLoadMore = useInfiniteScroll<HTMLDivElement>({
+    enabled: tab === "followers" && followersHasNext && !loadingFollowers,
+    deps: [followersCursor, followersHasNext, loadingFollowers, tab, followers.length],
+    onIntersect: () => {
+      void loadFollowers(false);
+    },
+  });
+
+  const observeFollowingLoadMore = useInfiniteScroll<HTMLDivElement>({
+    enabled: tab === "following" && followingHasNext && !loadingFollowing,
+    deps: [followingCursor, followingHasNext, loadingFollowing, tab, following.length],
+    onIntersect: () => {
+      void loadFollowing(false);
+    },
+  });
 
   const toggleLike = useCallback(
     (target: PostView) =>
@@ -714,14 +739,10 @@ export default function ProfileView({ username }: ProfileViewProps) {
                     />
                   ))}
                 </div>
-                {postsHasNext && (
-                  <button
-                    className={styles.loadMore}
-                    onClick={() => loadPosts(false, postsCursor)}
-                    disabled={loadingPosts}
-                  >
-                    {loadingPosts ? "Loading..." : "Load more posts"}
-                  </button>
+                {(postsHasNext || loadingPosts) && posts.length > 0 && (
+                  <div ref={observePostsLoadMore} className="loadMoreSentinel">
+                    {loadingPosts ? "Loading more posts..." : "Scroll for more"}
+                  </div>
                 )}
               </section>
             )}
@@ -777,14 +798,12 @@ export default function ProfileView({ username }: ProfileViewProps) {
                     );
                   })}
                 </div>
-                {followersHasNext && (
-                  <button
-                    className={styles.loadMore}
-                    onClick={() => loadFollowers(false)}
-                    disabled={loadingFollowers}
-                  >
-                    {loadingFollowers ? "Loading..." : "Load more followers"}
-                  </button>
+                {(followersHasNext || loadingFollowers) && followers.length > 0 && (
+                  <div ref={observeFollowersLoadMore} className="loadMoreSentinel">
+                    {loadingFollowers
+                      ? "Loading more followers..."
+                      : "Scroll for more"}
+                  </div>
                 )}
               </section>
             )}
@@ -828,14 +847,12 @@ export default function ProfileView({ username }: ProfileViewProps) {
                     </div>
                   ))}
                 </div>
-                {followingHasNext && (
-                  <button
-                    className={styles.loadMore}
-                    onClick={() => loadFollowing(false)}
-                    disabled={loadingFollowing}
-                  >
-                    {loadingFollowing ? "Loading..." : "Load more following"}
-                  </button>
+                {(followingHasNext || loadingFollowing) && following.length > 0 && (
+                  <div ref={observeFollowingLoadMore} className="loadMoreSentinel">
+                    {loadingFollowing
+                      ? "Loading more following..."
+                      : "Scroll for more"}
+                  </div>
                 )}
               </section>
             )}

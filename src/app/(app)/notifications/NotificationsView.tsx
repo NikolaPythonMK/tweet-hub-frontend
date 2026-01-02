@@ -15,6 +15,7 @@ import {
 import { getErrorMessage } from "@/lib/api/client";
 import type { Notification } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/useSession";
+import { useInfiniteScroll } from "@/lib/hooks/useInfiniteScroll";
 import { formatDate } from "@/lib/format";
 import StatePanel from "@/components/state/StatePanel";
 import styles from "./NotificationsView.module.css";
@@ -86,6 +87,14 @@ export default function NotificationsView() {
     setHasNext(false);
     void loadNotifications(true, null);
   }, [loadNotifications, sessionLoading, user, filter]);
+
+  const observeLoadMore = useInfiniteScroll<HTMLDivElement>({
+    enabled: !!user && hasNext && !loading,
+    deps: [cursor, hasNext, loading, items.length, filter],
+    onIntersect: () => {
+      void loadNotifications(false, cursor);
+    },
+  });
 
   const markRead = useCallback(async (notification: Notification) => {
     if (notification.readAt) return;
@@ -280,14 +289,10 @@ export default function NotificationsView() {
         </div>
       )}
 
-      {hasNext && (
-        <button
-          className={styles.loadMore}
-          onClick={() => loadNotifications(false, cursor)}
-          disabled={loading}
-        >
-          {loading ? "Loading..." : "Load more"}
-        </button>
+      {(hasNext || loading) && items.length > 0 && (
+        <div ref={observeLoadMore} className="loadMoreSentinel">
+          {loading ? "Loading more notifications..." : "Scroll for more"}
+        </div>
       )}
     </div>
   );
