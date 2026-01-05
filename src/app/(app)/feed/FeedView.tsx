@@ -515,10 +515,6 @@ export default function FeedView() {
               <span>focus feed</span>
             </div>
           </div>
-          <div className={styles.sideNote}>
-            <h4>Visibility rules</h4>
-            <p>Keep replies on track by picking who can respond.</p>
-          </div>
         </aside>
 
         <main className={styles.feed}>
@@ -629,30 +625,7 @@ export default function FeedView() {
           )}
         </main>
 
-        <aside className={styles.rightRail}>
-          <div className={styles.trendCard}>
-            <h4>Trending now</h4>
-            <ul>
-              <li>
-                <span>#ships</span>
-                <span>1.2k posts</span>
-              </li>
-              <li>
-                <span>#buildinpublic</span>
-                <span>860 posts</span>
-              </li>
-              <li>
-                <span>#slowtech</span>
-                <span>410 posts</span>
-              </li>
-            </ul>
-          </div>
-          <div className={styles.trendCard}>
-            <h4>Next up</h4>
-            <p>Invite two people to unlock private circles.</p>
-            <button className={styles.secondary}>Invite a friend</button>
-          </div>
-        </aside>
+        <aside className={styles.rightRail} />
       </div>
     </div>
   );
