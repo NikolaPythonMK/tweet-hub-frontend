@@ -217,6 +217,7 @@
   gap: var(--space-4);
 }
 
+
 .postList {
   display: flex;
   flex-direction: column;

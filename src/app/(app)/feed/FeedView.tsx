@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   bookmarkPost,
   createPost,
@@ -15,10 +16,17 @@ import {
   unrepostPost,
 } from "@/lib/api/posts";
 import { getErrorMessage } from "@/lib/api/client";
-import type { PostView, PostVisibility, ReplyPolicy } from "@/lib/api/types";
+import type {
+  PostTimeRange,
+  PostView,
+  PostVisibility,
+  ReplyPolicy,
+} from "@/lib/api/types";
 import { useSession } from "@/lib/auth/useSession";
 import { useInfiniteScroll } from "@/lib/hooks/useInfiniteScroll";
 import PostCard from "@/components/feed/PostCard";
+import PostListHeader from "@/components/posts/PostListHeader";
+import PostTimeRangeFilter from "@/components/posts/PostTimeRangeFilter";
 import StatePanel from "@/components/state/StatePanel";
 import styles from "./FeedView.module.css";
 
@@ -39,6 +47,7 @@ const maxImageSize = 5 * 1024 * 1024;
 
 export default function FeedView() {
   const { user, loading } = useSession();
+  const pathname = usePathname();
   const [posts, setPosts] = useState<PostView[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasNext, setHasNext] = useState(false);
@@ -48,14 +57,20 @@ export default function FeedView() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [visibility, setVisibility] = useState<PostVisibility>("PUBLIC");
   const [replyPolicy, setReplyPolicy] = useState<ReplyPolicy>("EVERYONE");
+  const [timeRange, setTimeRange] = useState<PostTimeRange | "">("");
   const [posting, setPosting] = useState(false);
   const canSubmit = (draft.trim().length > 0 || imageFile) && !posting;
   const [error, setError] = useState("");
   const [pending, setPending] = useState<Set<string>>(new Set());
   const [viewBumpId, setViewBumpId] = useState<string | null>(null);
-  const restoreScrollRef = useRef<number | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<number | null>(null);
+  const restoreAttemptsRef = useRef(0);
+  const restoreTimeoutRef = useRef<number | null>(null);
+  const restoreDeadlineRef = useRef<number | null>(null);
+  const restoreIntervalRef = useRef<number | null>(null);
   const scrollSaveTicking = useRef(false);
   const cacheHydrated = useRef(false);
+  const cacheTokenRef = useRef<string | null>(null);
 
   const updatePost = useCallback(
     (id: string, updater: (post: PostView) => PostView) => {
@@ -95,6 +110,7 @@ export default function FeedView() {
       const response = await listFeed({
         limit: 10,
         cursor: nextCursor,
+        timeRange: timeRange || undefined,
       });
       setPosts((prev) => (reset ? response.items : [...prev, ...response.items]));
       setCursor(response.nextCursor ?? null);
@@ -104,15 +120,20 @@ export default function FeedView() {
     } finally {
       setLoadingPosts(false);
     }
-  }, []);
+  }, [timeRange]);
 
   useEffect(() => {
-    if (!user) {
+    if (!user || pathname !== "/feed") {
       return;
+    }
+    const cacheToken = `${user.id}:${timeRange || "all"}`;
+    if (cacheTokenRef.current !== cacheToken) {
+      cacheHydrated.current = false;
+      cacheTokenRef.current = cacheToken;
     }
     const restoreKey = "feed:restore";
     const shouldRestore = sessionStorage.getItem(restoreKey) === "1";
-    const cacheKey = `feed:cache:${user.id}`;
+    const cacheKey = `feed:cache:${cacheToken}`;
     if (shouldRestore) {
       const cached = sessionStorage.getItem(cacheKey);
       if (cached) {
@@ -137,14 +158,28 @@ export default function FeedView() {
     if (shouldRestore && stored) {
       const value = Number(stored);
       if (!Number.isNaN(value)) {
-        restoreScrollRef.current = value;
+        setRestoreTarget(value);
       }
     }
     setViewBumpId(sessionStorage.getItem("feed:viewBumpId"));
     if (!cacheHydrated.current) {
       void loadPosts(true, null);
     }
-  }, [user, loadPosts]);
+  }, [loadPosts, pathname, timeRange, user]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    return () => {
+      const alreadySaved = sessionStorage.getItem("feed:restore") === "1";
+      if (alreadySaved) {
+        return;
+      }
+      sessionStorage.setItem("feed:restore", "1");
+      sessionStorage.setItem("feed:scrollY", String(window.scrollY));
+    };
+  }, [user]);
 
   useEffect(() => {
     if (!user) {
@@ -165,17 +200,75 @@ export default function FeedView() {
   }, [user]);
 
   useEffect(() => {
-    const target = restoreScrollRef.current;
-    if (target === null) {
+    if (restoreTarget === null) {
       return;
     }
-    requestAnimationFrame(() => {
-      window.scrollTo(0, target);
-      restoreScrollRef.current = null;
+    restoreAttemptsRef.current = 0;
+    restoreDeadlineRef.current = Date.now() + 3000;
+    if (restoreTimeoutRef.current) {
+      window.clearTimeout(restoreTimeoutRef.current);
+      restoreTimeoutRef.current = null;
+    }
+    if (restoreIntervalRef.current) {
+      window.clearInterval(restoreIntervalRef.current);
+      restoreIntervalRef.current = null;
+    }
+    let cancelled = false;
+    const stopRestore = () => {
+      if (restoreIntervalRef.current) {
+        window.clearInterval(restoreIntervalRef.current);
+        restoreIntervalRef.current = null;
+      }
+      restoreDeadlineRef.current = null;
+      setRestoreTarget(null);
       sessionStorage.removeItem("feed:scrollY");
       sessionStorage.removeItem("feed:restore");
-    });
-  }, [posts.length]);
+    };
+    const handleScroll = (event: Event) => {
+      if (cancelled) {
+        return;
+      }
+      const isTrusted = "isTrusted" in event ? event.isTrusted : false;
+      if (!isTrusted) {
+        return;
+      }
+      stopRestore();
+    };
+    const attemptRestore = () => {
+      if (cancelled || restoreTarget === null) {
+        return;
+      }
+      const maxScroll = Math.max(
+        0,
+        document.documentElement.scrollHeight - window.innerHeight,
+      );
+      const clamped = Math.min(restoreTarget, maxScroll);
+      window.scrollTo(0, clamped);
+      restoreAttemptsRef.current += 1;
+      const deadline = restoreDeadlineRef.current ?? Date.now();
+      if (Date.now() < deadline) {
+        restoreTimeoutRef.current = window.setTimeout(attemptRestore, 60);
+        return;
+      }
+      stopRestore();
+    };
+    const raf = window.requestAnimationFrame(attemptRestore);
+    restoreIntervalRef.current = window.setInterval(attemptRestore, 120);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", handleScroll);
+      if (restoreTimeoutRef.current) {
+        window.clearTimeout(restoreTimeoutRef.current);
+        restoreTimeoutRef.current = null;
+      }
+      if (restoreIntervalRef.current) {
+        window.clearInterval(restoreIntervalRef.current);
+        restoreIntervalRef.current = null;
+      }
+    };
+  }, [posts.length, restoreTarget]);
 
   useEffect(() => {
     if (!viewBumpId || posts.length === 0) {
@@ -207,14 +300,15 @@ export default function FeedView() {
     if (!posts.length) {
       return;
     }
-    const cacheKey = `feed:cache:${user.id}`;
+    const cacheToken = `${user.id}:${timeRange || "all"}`;
+    const cacheKey = `feed:cache:${cacheToken}`;
     const payload = JSON.stringify({
       posts,
       cursor,
       hasNext,
     });
     sessionStorage.setItem(cacheKey, payload);
-  }, [cursor, hasNext, posts, user]);
+  }, [cursor, hasNext, posts, timeRange, user]);
 
   const observeLoadMore = useInfiniteScroll<HTMLDivElement>({
     enabled: !!user && hasNext && !loadingPosts,
@@ -429,6 +523,15 @@ export default function FeedView() {
         </aside>
 
         <main className={styles.feed}>
+          <PostListHeader
+            right={
+              <PostTimeRangeFilter
+                value={timeRange}
+                onChange={setTimeRange}
+                label="Sort"
+              />
+            }
+          />
           <form className={styles.composer} onSubmit={submitPost}>
             <div className={styles.composerControls}>
               <label className={styles.control}>

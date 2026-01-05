@@ -602,7 +602,7 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
   return (
     <div className={styles.page}>
       <header className={styles.nav}>
-        <Link href="/feed" className={styles.back}>
+        <Link href="/feed" className={styles.back} scroll={false}>
           {"<- Back to feed"}
         </Link>
         <div className={styles.navMeta}>
@@ -728,7 +728,11 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
               </form>
             )}
           </div>
-          <form ref={composerRef} className={styles.composer} onSubmit={submitReply}>
+          <form
+            ref={composerRef}
+            className={`${styles.composer} ${styles.composerCard}`}
+            onSubmit={submitReply}
+          >
             <div className={styles.replyMeta}>
               <span>{replyLabel}</span>
               {replyTarget !== postId && (

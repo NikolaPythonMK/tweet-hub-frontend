@@ -164,6 +164,13 @@
   background: transparent;
 }
 
+.composerCard {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  background: var(--card-soft);
+}
+
 .composer textarea {
   border: none;
   resize: vertical;
@@ -191,6 +198,9 @@
   justify-content: space-between;
   font-size: 0.85rem;
   color: var(--ink-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 10px;
 }
 
 .replyMeta button {

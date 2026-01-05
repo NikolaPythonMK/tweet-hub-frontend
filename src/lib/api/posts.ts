@@ -3,6 +3,7 @@ import type {
   CursorPage,
   Post,
   PostView,
+  PostTimeRange,
   PostVisibility,
   ReplyPolicy,
 } from "./types";
@@ -15,6 +16,7 @@ export type ListPostsParams = {
   rootPostId?: string;
   repostOfPostId?: string;
   quoteOfPostId?: string;
+  timeRange?: PostTimeRange;
 };
 
 export type CreatePostPayload = {
@@ -39,6 +41,7 @@ export async function listPosts(
   if (params.rootPostId) search.set("rootPostId", params.rootPostId);
   if (params.repostOfPostId) search.set("repostOfPostId", params.repostOfPostId);
   if (params.quoteOfPostId) search.set("quoteOfPostId", params.quoteOfPostId);
+  if (params.timeRange) search.set("timeRange", params.timeRange);
   const query = search.toString();
   return apiFetch(`/posts${query ? `?${query}` : ""}`, { method: "GET" });
 }
@@ -54,6 +57,7 @@ export async function listFeed(
   if (params.rootPostId) search.set("rootPostId", params.rootPostId);
   if (params.repostOfPostId) search.set("repostOfPostId", params.repostOfPostId);
   if (params.quoteOfPostId) search.set("quoteOfPostId", params.quoteOfPostId);
+  if (params.timeRange) search.set("timeRange", params.timeRange);
   const query = search.toString();
   return apiFetch(`/posts/feed${query ? `?${query}` : ""}`, { method: "GET" });
 }

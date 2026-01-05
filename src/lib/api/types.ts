@@ -21,6 +21,13 @@ export type ReplyPolicy =
   | "MENTIONED_ONLY"
   | "NOBODY";
 
+export type PostTimeRange =
+  | "LAST_HOUR"
+  | "TODAY"
+  | "LAST_WEEK"
+  | "LAST_MONTH"
+  | "LAST_YEAR";
+
 export type Post = {
   id: string;
   authorId: string;

@@ -25,10 +25,18 @@ import {
   updateProfile,
 } from "@/lib/api/users";
 import { getErrorMessage } from "@/lib/api/client";
-import type { Post, PostView, User, UserStats } from "@/lib/api/types";
+import type {
+  Post,
+  PostTimeRange,
+  PostView,
+  User,
+  UserStats,
+} from "@/lib/api/types";
 import { useSession } from "@/lib/auth/useSession";
 import { useInfiniteScroll } from "@/lib/hooks/useInfiniteScroll";
 import PostCard from "@/components/feed/PostCard";
+import PostListHeader from "@/components/posts/PostListHeader";
+import PostTimeRangeFilter from "@/components/posts/PostTimeRangeFilter";
 import StatePanel from "@/components/state/StatePanel";
 import styles from "./ProfileView.module.css";
 
@@ -63,6 +71,7 @@ export default function ProfileView({ username }: ProfileViewProps) {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [timeRange, setTimeRange] = useState<PostTimeRange | "">("");
 
   const [posts, setPosts] = useState<PostView[]>([]);
   const [postsCursor, setPostsCursor] = useState<string | null>(null);
@@ -169,6 +178,7 @@ export default function ProfileView({ username }: ProfileViewProps) {
             authorId: profile.id,
             limit: 10,
             cursor: nextCursor,
+            timeRange: timeRange || undefined,
           });
           setPosts((prev) => (reset ? response.items : [...prev, ...response.items]));
           setPostsCursor(response.nextCursor ?? null);
@@ -178,6 +188,7 @@ export default function ProfileView({ username }: ProfileViewProps) {
             authorId: profile.id,
             limit: 10,
             cursor: nextCursor,
+            timeRange: timeRange || undefined,
           });
           const mapped = response.items.map((item) => emptyFlags(item));
           setPosts((prev) => (reset ? mapped : [...prev, ...mapped]));
@@ -190,7 +201,7 @@ export default function ProfileView({ username }: ProfileViewProps) {
         setLoadingPosts(false);
       }
     },
-    [isAuthed, profile],
+    [isAuthed, profile, timeRange],
   );
 
   const loadFollowers = useCallback(
@@ -715,6 +726,15 @@ export default function ProfileView({ username }: ProfileViewProps) {
 
             {tab === "posts" && (
               <section className={styles.listSection}>
+                <PostListHeader
+                  right={
+                    <PostTimeRangeFilter
+                      value={timeRange}
+                      onChange={setTimeRange}
+                      label="Sort"
+                    />
+                  }
+                />
                 {posts.length === 0 && !loadingPosts && (
                   <StatePanel
                     variant="empty"

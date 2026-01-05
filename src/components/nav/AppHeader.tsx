@@ -45,6 +45,12 @@ export default function AppHeader() {
   }, [pathname, user]);
 
   useEffect(() => {
+    if ("scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
+    }
+  }, []);
+
+  useEffect(() => {
     const storedTheme = localStorage.getItem(THEME_KEY);
     const storedMode = localStorage.getItem(THEME_MODE_KEY);
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -133,7 +139,7 @@ export default function AppHeader() {
 
   return (
     <header className={styles.header}>
-      <Link href={brandHref} className={styles.brand}>
+      <Link href={brandHref} className={styles.brand} scroll={false}>
         <span className={styles.brandMark} />
         <span>Tweet Hub</span>
       </Link>

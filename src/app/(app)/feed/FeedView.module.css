@@ -81,6 +81,7 @@
   gap: var(--space-4);
 }
 
+
 .composer {
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
