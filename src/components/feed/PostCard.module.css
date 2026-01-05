@@ -59,6 +59,11 @@
 .displayName {
   font-weight: 600;
   color: var(--ink);
+  transition: color 0.2s ease;
+}
+
+.displayName:hover {
+  color: var(--accent);
 }
 
 .handle {

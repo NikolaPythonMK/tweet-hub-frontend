@@ -18,7 +18,6 @@ export type PostVisibility = "PUBLIC" | "FOLLOWERS" | "PRIVATE";
 export type ReplyPolicy =
   | "EVERYONE"
   | "FOLLOWERS"
-  | "MENTIONED_ONLY"
   | "NOBODY";
 
 export type PostTimeRange =

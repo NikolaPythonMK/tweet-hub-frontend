@@ -61,9 +61,7 @@ export default function PostCard({
       ? null
       : post.replyPolicy === "FOLLOWERS"
         ? "Replies: Followers"
-        : post.replyPolicy === "MENTIONED_ONLY"
-          ? "Replies: Mentioned"
-          : "Replies: Nobody";
+        : "Replies: Nobody";
   const imageSrc = post.imageUrl
     ? post.imageUrl.startsWith("/")
       ? `/api${post.imageUrl}`
@@ -106,16 +104,25 @@ export default function PostCard({
       onPointerDown={saveFeedScroll}
       onClick={handleCardClick}
     >
-      <div className={styles.avatar}>
+      <Link
+        href={`/users/${encodeURIComponent(authorSlug)}`}
+        className={styles.avatar}
+        aria-label={`View ${displayName}'s profile`}
+      >
         {avatarSrc ? (
           <img src={avatarSrc} alt="" className={styles.avatarImage} />
         ) : (
           initials
         )}
-      </div>
+      </Link>
       <div className={styles.content}>
         <div className={styles.meta}>
-          <span className={styles.displayName}>{displayName}</span>
+          <Link
+            className={styles.displayName}
+            href={`/users/${encodeURIComponent(authorSlug)}`}
+          >
+            {displayName}
+          </Link>
           <Link className={styles.handle} href={`/users/${encodeURIComponent(authorSlug)}`}>
             @{handle}
           </Link>

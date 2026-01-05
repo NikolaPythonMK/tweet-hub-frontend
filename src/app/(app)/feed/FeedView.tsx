@@ -39,7 +39,6 @@ const visibilityOptions: { value: PostVisibility; label: string }[] = [
 const replyPolicyOptions: { value: ReplyPolicy; label: string }[] = [
   { value: "EVERYONE", label: "Everyone" },
   { value: "FOLLOWERS", label: "Followers" },
-  { value: "MENTIONED_ONLY", label: "Mentioned" },
   { value: "NOBODY", label: "Nobody" },
 ];
 
