@@ -91,6 +91,7 @@ export default function PostCard({
       return;
     }
     sessionStorage.setItem("feed:restore", "1");
+    sessionStorage.setItem("feed:lock", "1");
     sessionStorage.setItem("feed:scrollY", String(window.scrollY));
     sessionStorage.setItem("feed:viewBumpId", post.id);
   };

@@ -131,6 +131,7 @@ export default function FeedView() {
       cacheTokenRef.current = cacheToken;
     }
     const restoreKey = "feed:restore";
+    const lockKey = "feed:lock";
     const shouldRestore = sessionStorage.getItem(restoreKey) === "1";
     const cacheKey = `feed:cache:${cacheToken}`;
     if (shouldRestore) {
@@ -159,6 +160,8 @@ export default function FeedView() {
       if (!Number.isNaN(value)) {
         setRestoreTarget(value);
       }
+    } else {
+      sessionStorage.removeItem(lockKey);
     }
     setViewBumpId(sessionStorage.getItem("feed:viewBumpId"));
     if (!cacheHydrated.current) {
@@ -185,6 +188,9 @@ export default function FeedView() {
       return;
     }
     const handleScroll = () => {
+      if (sessionStorage.getItem("feed:lock") === "1") {
+        return;
+      }
       if (scrollSaveTicking.current) {
         return;
       }
@@ -222,6 +228,7 @@ export default function FeedView() {
       setRestoreTarget(null);
       sessionStorage.removeItem("feed:scrollY");
       sessionStorage.removeItem("feed:restore");
+      sessionStorage.removeItem("feed:lock");
     };
     const handleScroll = (event: Event) => {
       if (cancelled) {
