@@ -7,6 +7,7 @@ import { getUnreadNotificationsCount } from "@/lib/api/notifications";
 import { logout } from "@/lib/api/auth";
 import { useSession } from "@/lib/auth/useSession";
 import { Bell, Bookmark, Moon, Sun } from "lucide-react";
+import { resolveMediaUrl } from "@/lib/media";
 import styles from "./AppHeader.module.css";
 
 export default function AppHeader() {
@@ -110,7 +111,7 @@ export default function AppHeader() {
     try {
       await logout();
     } catch {
-      // Ignore logout errors; clear local session regardless.
+      
     } finally {
       setUser(null);
       setUnreadCount(0);
@@ -122,11 +123,7 @@ export default function AppHeader() {
     if (!user) return "??";
     return user.displayName.slice(0, 2).toUpperCase();
   }, [user]);
-  const avatarSrc = user?.avatarUrl
-    ? user.avatarUrl.startsWith("/")
-      ? `/api${user.avatarUrl}`
-      : user.avatarUrl
-    : null;
+  const avatarSrc = resolveMediaUrl(user?.avatarUrl ?? null);
 
   const profileHref = user
     ? `/users/${encodeURIComponent(user.username || user.id)}`

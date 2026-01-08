@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Bookmark, Heart, MessageCircle, Repeat2 } from "lucide-react";
 import { formatDate } from "@/lib/format";
+import { resolveMediaUrl } from "@/lib/media";
 import styles from "./PostCard.module.css";
 
 type PostCardProps = {
@@ -40,11 +41,7 @@ export default function PostCard({
   const displayName = post.authorDisplayName ?? handle;
   const initialsSource = displayName;
   const initials = initialsSource.slice(0, 2).toUpperCase();
-  const avatarSrc = post.authorAvatarUrl
-    ? post.authorAvatarUrl.startsWith("/")
-      ? `/api${post.authorAvatarUrl}`
-      : post.authorAvatarUrl
-    : null;
+  const avatarSrc = resolveMediaUrl(post.authorAvatarUrl);
   const likeLabel = post.likedByMe ? "Liked" : "Like";
   const bookmarkLabel = post.bookmarkedByMe ? "Bookmarked" : "Bookmark";
   const repostLabel = post.repostedByMe ? "Reposted" : "Repost";
@@ -62,21 +59,13 @@ export default function PostCard({
       : post.replyPolicy === "FOLLOWERS"
         ? "Replies: Followers"
         : "Replies: Nobody";
-  const imageSrc = post.imageUrl
-    ? post.imageUrl.startsWith("/")
-      ? `/api${post.imageUrl}`
-      : post.imageUrl
-    : null;
+  const imageSrc = resolveMediaUrl(post.imageUrl);
   const repost = post.repost ?? null;
   const repostHandle = repost
     ? repost.authorUsername ?? repost.authorId.slice(0, 8)
     : "";
   const repostDisplayName = repost ? repost.authorDisplayName ?? repostHandle : "";
-  const repostImageSrc = repost?.imageUrl
-    ? repost.imageUrl.startsWith("/")
-      ? `/api${repost.imageUrl}`
-      : repost.imageUrl
-    : null;
+  const repostImageSrc = resolveMediaUrl(repost?.imageUrl ?? null);
 
   const handleCardClick = (event: MouseEvent<HTMLElement>) => {
     const target = event.target as HTMLElement;
@@ -93,7 +82,6 @@ export default function PostCard({
     sessionStorage.setItem("feed:restore", "1");
     sessionStorage.setItem("feed:lock", "1");
     sessionStorage.setItem("feed:scrollY", String(window.scrollY));
-    sessionStorage.setItem("feed:viewBumpId", post.id);
   };
 
   const cardClassName =

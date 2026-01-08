@@ -1,41 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEvent, FormEvent } from "react";
-import Link from "next/link";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  bookmarkPost,
-  createPost,
-  getPost,
-  getPostView,
-  likePost,
-  listFeed,
-  listPosts,
-  repostPost,
-  uploadPostImage,
-  unbookmarkPost,
-  unlikePost,
-  unrepostPost,
-} from "@/lib/api/posts";
 import { getErrorMessage } from "@/lib/api/client";
-import type { Post, PostView, PostVisibility, ReplyPolicy } from "@/lib/api/types";
+import type { PostView, PostVisibility, ReplyPolicy } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/useSession";
-import { useInfiniteScroll } from "@/lib/hooks/useInfiniteScroll";
-import PostCard from "@/components/feed/PostCard";
+import { usePendingActions } from "@/lib/hooks/usePendingActions";
+import { usePostActions } from "@/lib/hooks/usePostActions";
 import StatePanel from "@/components/state/StatePanel";
+import PostDetailAuthNotice from "./components/PostDetailAuthNotice";
+import PostDetailHeader from "./components/PostDetailHeader";
+import PostDetailMainPost from "./components/PostDetailMainPost";
+import PostDetailQuoteComposer from "./components/PostDetailQuoteComposer";
+import PostDetailReplies from "./components/PostDetailReplies";
+import PostDetailRepliesTree from "./components/PostDetailRepliesTree";
+import PostDetailReplyComposer from "./components/PostDetailReplyComposer";
+import { usePostComposers } from "./hooks/usePostComposers";
+import { usePostReplies } from "./hooks/usePostReplies";
+import { usePostThread } from "./hooks/usePostThread";
 import styles from "./PostDetailView.module.css";
 
 type PostDetailViewProps = {
   postId: string;
 };
-
-const emptyFlags = (post: Post): PostView => ({
-  ...post,
-  likedByMe: false,
-  bookmarkedByMe: false,
-  repostedByMe: false,
-});
 
 const visibilityOptions: { value: PostVisibility; label: string }[] = [
   { value: "PUBLIC", label: "Public" },
@@ -49,56 +36,35 @@ const replyPolicyOptions: { value: ReplyPolicy; label: string }[] = [
   { value: "NOBODY", label: "Nobody" },
 ];
 
-const maxImageSize = 5 * 1024 * 1024;
-
 export default function PostDetailView({ postId }: PostDetailViewProps) {
   const router = useRouter();
   const { user, loading: sessionLoading } = useSession();
   const [post, setPost] = useState<PostView | null>(null);
-  const [childrenByParent, setChildrenByParent] = useState<
-    Record<string, PostView[]>
-  >({});
-  const [collapsedByParent, setCollapsedByParent] = useState<
-    Record<string, boolean>
-  >({});
-  const [cursorByParent, setCursorByParent] = useState<
-    Record<string, string | null>
-  >({});
-  const [hasNextByParent, setHasNextByParent] = useState<
-    Record<string, boolean>
-  >({});
-  const [loadingByParent, setLoadingByParent] = useState<
-    Record<string, boolean>
-  >({});
-  const [loadingPost, setLoadingPost] = useState(true);
-  const [replyDraft, setReplyDraft] = useState("");
-  const [replyImageFile, setReplyImageFile] = useState<File | null>(null);
-  const [replyImagePreview, setReplyImagePreview] = useState<string | null>(null);
-  const [replyVisibility, setReplyVisibility] =
-    useState<PostVisibility>("PUBLIC");
-  const [replyPolicy, setReplyPolicy] = useState<ReplyPolicy>("EVERYONE");
-  const [replyTargetId, setReplyTargetId] = useState<string | null>(null);
-  const [quoteDraft, setQuoteDraft] = useState("");
-  const [quoteImageFile, setQuoteImageFile] = useState<File | null>(null);
-  const [quoteImagePreview, setQuoteImagePreview] = useState<string | null>(null);
-  const [quoteVisibility, setQuoteVisibility] =
-    useState<PostVisibility>("PUBLIC");
-  const [quoteReplyPolicy, setQuoteReplyPolicy] =
-    useState<ReplyPolicy>("EVERYONE");
-  const [quoteOpen, setQuoteOpen] = useState(false);
-  const [quoteLoading, setQuoteLoading] = useState(false);
   const [error, setError] = useState("");
-  const [pending, setPending] = useState<Set<string>>(new Set());
+  const { pending, runAction } = usePendingActions({
+    onError: (err) => setError(getErrorMessage(err)),
+    onStart: () => setError(""),
+  });
   const composerRef = useRef<HTMLFormElement | null>(null);
-  const loadKeyRef = useRef<string | null>(null);
 
   const isAuthed = !!user;
-  const canReply = isAuthed && (replyDraft.trim().length > 0 || replyImageFile);
-  const replyTarget = replyTargetId ?? postId;
-  const replyLabel =
-    replyTarget === postId
-      ? "Replying to thread"
-      : `Replying to ${replyTarget.slice(0, 8)}`;
+
+  const {
+    childrenByParent,
+    collapsedByParent,
+    hasNextByParent,
+    loadingByParent,
+    setChildrenByParent,
+    addReply,
+    setCollapsed,
+    resetReplies,
+    loadChildren,
+    registerLoadMoreRef,
+  } = usePostReplies({
+    isAuthed,
+    onError: (message) => setError(message),
+    onStart: () => setError(""),
+  });
 
   const updatePost = useCallback(
     (id: string, updater: (item: PostView) => PostView) => {
@@ -111,473 +77,85 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
         return next;
       });
     },
-    [],
+    [setChildrenByParent],
   );
 
-  const runAction = useCallback(async (key: string, action: () => Promise<void>) => {
-    setPending((prev) => {
-      const next = new Set(prev);
-      next.add(key);
-      return next;
-    });
-    setError("");
-    try {
-      await action();
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setPending((prev) => {
-        const next = new Set(prev);
-        next.delete(key);
-        return next;
-      });
-    }
-  }, []);
-
-  const loadPost = useCallback(async () => {
-    setLoadingPost(true);
-    setError("");
-    try {
-      if (isAuthed) {
-        const response = await getPostView(postId);
-        setPost(response);
-      } else {
-        const response = await getPost(postId);
-        setPost(response ? emptyFlags(response) : null);
-      }
-    } catch (err) {
-      setError(getErrorMessage(err));
-      setPost(null);
-    } finally {
-      setLoadingPost(false);
-    }
-  }, [isAuthed, postId]);
-
-  const loadChildren = useCallback(
-    async (parentId: string, reset: boolean, cursorArg?: string | null) => {
-      setLoadingByParent((prev) => ({ ...prev, [parentId]: true }));
-      setError("");
-      try {
-        const cursor = reset ? undefined : cursorArg ?? undefined;
-        if (isAuthed) {
-          const response = await listFeed({
-            replyToPostId: parentId,
-            limit: 10,
-            cursor,
-          });
-          setChildrenByParent((prev) => ({
-            ...prev,
-            [parentId]: reset
-              ? response.items
-              : [...(prev[parentId] ?? []), ...response.items],
-          }));
-          setCursorByParent((prev) => ({
-            ...prev,
-            [parentId]: response.nextCursor ?? null,
-          }));
-          setHasNextByParent((prev) => ({
-            ...prev,
-            [parentId]: response.hasNext,
-          }));
-        } else {
-          const response = await listPosts({
-            replyToPostId: parentId,
-            limit: 10,
-            cursor,
-          });
-          const mapped = response.items.map((item) => emptyFlags(item));
-          setChildrenByParent((prev) => ({
-            ...prev,
-            [parentId]: reset ? mapped : [...(prev[parentId] ?? []), ...mapped],
-          }));
-          setCursorByParent((prev) => ({
-            ...prev,
-            [parentId]: response.nextCursor ?? null,
-          }));
-          setHasNextByParent((prev) => ({
-            ...prev,
-            [parentId]: response.hasNext,
-          }));
-        }
-      } catch (err) {
-        setError(getErrorMessage(err));
-      } finally {
-        setLoadingByParent((prev) => ({ ...prev, [parentId]: false }));
-      }
-    },
-    [isAuthed],
-  );
-
-  useEffect(() => {
-    if (sessionLoading) {
-      return;
-    }
-    const loadKey = `${postId}:${isAuthed ? user?.id ?? "auth" : "anon"}`;
-    if (loadKeyRef.current === loadKey) {
-      return;
-    }
-    loadKeyRef.current = loadKey;
-    window.scrollTo(0, 0);
-    setReplyTargetId(postId);
-    setChildrenByParent({});
-    setCollapsedByParent({});
-    setCursorByParent({});
-    setHasNextByParent({});
-    setLoadingByParent({});
-    setQuoteOpen(false);
-    setQuoteDraft("");
-    setReplyImageFile(null);
-    setQuoteImageFile(null);
-    void loadPost();
-    void loadChildren(postId, true, null);
-  }, [isAuthed, loadChildren, loadPost, postId, sessionLoading, user?.id]);
-
-  useEffect(() => {
-    if (!replyImageFile) {
-      setReplyImagePreview(null);
-      return;
-    }
-    const url = URL.createObjectURL(replyImageFile);
-    setReplyImagePreview(url);
-    return () => {
-      URL.revokeObjectURL(url);
-    };
-  }, [replyImageFile]);
-
-  useEffect(() => {
-    if (!quoteImageFile) {
-      setQuoteImagePreview(null);
-      return;
-    }
-    const url = URL.createObjectURL(quoteImageFile);
-    setQuoteImagePreview(url);
-    return () => {
-      URL.revokeObjectURL(url);
-    };
-  }, [quoteImageFile]);
-  const observeLoadMore = useInfiniteScroll<HTMLDivElement>({
-    enabled: true,
-    deps: [cursorByParent, hasNextByParent, loadingByParent, childrenByParent],
-    onIntersect: (target) => {
-      const parentId = target.dataset.parentId;
-      if (!parentId) {
-        return;
-      }
-      const isLoading = loadingByParent[parentId] ?? false;
-      const hasNext = hasNextByParent[parentId] ?? false;
-      if (!hasNext || isLoading) {
-        return;
-      }
-      void loadChildren(parentId, false, cursorByParent[parentId] ?? null);
-    },
+  const { toggleLike, toggleBookmark, toggleRepost } = usePostActions({
+    runAction,
+    updatePost,
   });
 
-  const registerLoadMoreRef = useCallback(
-    (parentId: string) => (node: HTMLDivElement | null) => {
-      if (node) {
-        node.dataset.parentId = parentId;
-      }
-      observeLoadMore(node);
+  const setPostUpdater = useCallback(
+    (updater: (prev: PostView | null) => PostView | null) => {
+      setPost((prev) => updater(prev));
     },
-    [observeLoadMore],
+    [setPost],
   );
 
-  const handleImageChange = (
-    event: ChangeEvent<HTMLInputElement>,
-    setFile: (file: File | null) => void,
-  ) => {
-    const file = event.target.files?.[0] ?? null;
-    if (!file) {
-      setFile(null);
-      return;
-    }
-    if (!file.type.startsWith("image/")) {
-      setError("Only image files are allowed.");
-      event.target.value = "";
-      setFile(null);
-      return;
-    }
-    if (file.size > maxImageSize) {
-      setError("Image must be 5MB or smaller.");
-      event.target.value = "";
-      setFile(null);
-      return;
-    }
-    setError("");
-    setFile(file);
-  };
+  const {
+    replyDraft,
+    setReplyDraft,
+    replyImagePreview,
+    replyVisibility,
+    setReplyVisibility,
+    replyPolicy,
+    setReplyPolicy,
+    replyTargetId,
+    setReplyTargetId,
+    replyLabel,
+    canReply,
+    quoteDraft,
+    setQuoteDraft,
+    quoteImagePreview,
+    quoteVisibility,
+    setQuoteVisibility,
+    quoteReplyPolicy,
+    setQuoteReplyPolicy,
+    quoteOpen,
+    setQuoteOpen,
+    quoteLoading,
+    handleReplyImageChange,
+    handleQuoteImageChange,
+    clearReplyImage,
+    clearQuoteImage,
+    submitReply,
+    submitQuote,
+    resetComposers,
+  } = usePostComposers({
+    postId,
+    user,
+    isAuthed,
+    addReply,
+    setPost: setPostUpdater,
+    updatePost,
+    onError: (message) => setError(message),
+    onStart: () => setError(""),
+    onQuoteCreated: (createdId) => router.push(`/posts/${createdId}`),
+  });
 
-  const clearReplyImage = () => {
-    setReplyImageFile(null);
-  };
+  const handleThreadReset = useCallback(() => {
+    resetReplies();
+    resetComposers();
+    void loadChildren(postId, true, null);
+  }, [loadChildren, postId, resetComposers, resetReplies]);
 
-  const clearQuoteImage = () => {
-    setQuoteImageFile(null);
-  };
+  const { loadingPost } = usePostThread({
+    postId,
+    isAuthed,
+    userId: user?.id,
+    sessionLoading,
+    setPost,
+    onError: (message) => setError(message),
+    onStart: () => setError(""),
+    onBeforeLoad: handleThreadReset,
+  });
 
-  const submitReply = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!canReply) {
-      return;
-    }
-    setError("");
-    try {
-      let imageUrl: string | undefined;
-      if (replyImageFile) {
-        const uploaded = await uploadPostImage(replyImageFile);
-        imageUrl = uploaded.url;
-      }
-      const created = await createPost({
-        text: replyDraft.trim() || undefined,
-        replyToPostId: replyTarget,
-        imageUrl,
-        visibility: replyVisibility,
-        replyPolicy,
-      });
-      const mapped = {
-        ...emptyFlags(created),
-        authorUsername: user?.username ?? created.authorUsername,
-        authorDisplayName: user?.displayName ?? created.authorDisplayName,
-        authorAvatarUrl: user?.avatarUrl ?? created.authorAvatarUrl,
-      };
-      setChildrenByParent((prev) => ({
-        ...prev,
-        [replyTarget]: [mapped, ...(prev[replyTarget] ?? [])],
-      }));
-      setCollapsedByParent((prev) => ({ ...prev, [replyTarget]: false }));
-      setReplyDraft("");
-      setReplyImageFile(null);
-      setReplyTargetId(postId);
-      setPost((prev) =>
-        prev ? { ...prev, replyCount: prev.replyCount + 1 } : prev,
-      );
-      if (replyTarget !== postId) {
-        updatePost(replyTarget, (current) => ({
-          ...current,
-          replyCount: current.replyCount + 1,
-        }));
-      }
-    } catch (err) {
-      setError(getErrorMessage(err));
-    }
-  };
-
-  const submitQuote = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!isAuthed || quoteLoading) {
-      return;
-    }
-    setQuoteLoading(true);
-    setError("");
-    try {
-      const trimmed = quoteDraft.trim();
-      let imageUrl: string | undefined;
-      if (quoteImageFile) {
-        const uploaded = await uploadPostImage(quoteImageFile);
-        imageUrl = uploaded.url;
-      }
-      const created = await createPost({
-        quoteOfPostId: postId,
-        text: trimmed.length > 0 ? trimmed : undefined,
-        imageUrl,
-        visibility: quoteVisibility,
-        replyPolicy: quoteReplyPolicy,
-      });
-      setQuoteDraft("");
-      setQuoteOpen(false);
-      setQuoteImageFile(null);
-      router.push(`/posts/${created.id}`);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setQuoteLoading(false);
-    }
-  };
-
-  const toggleLike = useCallback(
-    (target: PostView) =>
-      runAction(`like:${target.id}`, async () => {
-        if (target.likedByMe) {
-          await unlikePost(target.id);
-          updatePost(target.id, (current) => ({
-            ...current,
-            likedByMe: false,
-            likeCount: Math.max(0, current.likeCount - 1),
-          }));
-        } else {
-          await likePost(target.id);
-          updatePost(target.id, (current) => ({
-            ...current,
-            likedByMe: true,
-            likeCount: current.likeCount + 1,
-          }));
-        }
-      }),
-    [runAction, updatePost],
-  );
-
-  const toggleBookmark = useCallback(
-    (target: PostView) =>
-      runAction(`bookmark:${target.id}`, async () => {
-        if (target.bookmarkedByMe) {
-          await unbookmarkPost(target.id);
-          updatePost(target.id, (current) => ({
-            ...current,
-            bookmarkedByMe: false,
-          }));
-        } else {
-          await bookmarkPost(target.id);
-          updatePost(target.id, (current) => ({
-            ...current,
-            bookmarkedByMe: true,
-          }));
-        }
-      }),
-    [runAction, updatePost],
-  );
-
-  const toggleRepost = useCallback(
-    (target: PostView) =>
-      runAction(`repost:${target.id}`, async () => {
-        if (target.repostedByMe) {
-          await unrepostPost(target.id);
-          updatePost(target.id, (current) => ({
-            ...current,
-            repostedByMe: false,
-            repostCount: Math.max(0, current.repostCount - 1),
-          }));
-        } else {
-          await repostPost(target.id);
-          updatePost(target.id, (current) => ({
-            ...current,
-            repostedByMe: true,
-            repostCount: current.repostCount + 1,
-          }));
-        }
-      }),
-    [runAction, updatePost],
-  );
-
-  const handleReplyTo = useCallback((target: PostView) => {
-    setReplyTargetId(target.id);
-    composerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, []);
-
-  const renderReplies = useCallback(
-    (parentId: string, depth: number) => {
-      const children = childrenByParent[parentId] ?? [];
-      const isLoading = loadingByParent[parentId] ?? false;
-      const hasNext = hasNextByParent[parentId] ?? false;
-      const hasLoaded = Object.prototype.hasOwnProperty.call(
-        childrenByParent,
-        parentId,
-      );
-
-      return (
-        <div className={styles.replyGroup}>
-          {children.map((reply) => {
-            const childLoaded = Object.prototype.hasOwnProperty.call(
-              childrenByParent,
-              reply.id,
-            );
-            const childHasNext = hasNextByParent[reply.id] ?? false;
-            const childLoading = loadingByParent[reply.id] ?? false;
-            const childCount = childrenByParent[reply.id]?.length ?? 0;
-            const childCollapsed = collapsedByParent[reply.id] ?? false;
-
-            return (
-              <div
-                key={reply.id}
-                className={
-                  depth > 0
-                    ? `${styles.replyNode} ${styles.replyNested}`
-                    : styles.replyNode
-                }
-                style={{ marginLeft: `${depth * 18}px` }}
-              >
-                <PostCard
-                  post={reply}
-                  variant="thread"
-                  onLike={isAuthed ? toggleLike : undefined}
-                  onBookmark={isAuthed ? toggleBookmark : undefined}
-                  onRepost={isAuthed ? toggleRepost : undefined}
-                  onReply={isAuthed ? handleReplyTo : undefined}
-                  pending={{
-                    like: pending.has(`like:${reply.id}`),
-                    bookmark: pending.has(`bookmark:${reply.id}`),
-                    repost: pending.has(`repost:${reply.id}`),
-                  }}
-                  showActions={isAuthed}
-                />
-                {reply.replyCount > 0 && !childLoaded && (
-                  <button
-                    className={styles.showReplies}
-                    type="button"
-                    onClick={() => {
-                      setCollapsedByParent((prev) => ({
-                        ...prev,
-                        [reply.id]: false,
-                      }));
-                      void loadChildren(reply.id, true, null);
-                    }}
-                    disabled={childLoading}
-                  >
-                    {childLoading
-                      ? "Loading replies..."
-                      : `View replies (${reply.replyCount})`}
-                  </button>
-                )}
-                {childLoaded && childCount > 0 && (
-                  <button
-                    className={styles.collapseButton}
-                    type="button"
-                    onClick={() =>
-                      setCollapsedByParent((prev) => ({
-                        ...prev,
-                        [reply.id]: !childCollapsed,
-                      }))
-                    }
-                  >
-                    {childCollapsed ? "Show replies" : "Hide replies"}
-                  </button>
-                )}
-                {childLoaded && childCount === 0 && reply.replyCount > 0 && (
-                  <div className={styles.emptyReplies}>No replies yet.</div>
-                )}
-                {childLoaded && !childCollapsed && renderReplies(reply.id, depth + 1)}
-                {childLoaded && !childCollapsed && (childHasNext || childLoading) && (
-                  <div ref={registerLoadMoreRef(reply.id)} className="loadMoreSentinel">
-                    {childLoading ? "Loading more replies..." : "Scroll for more replies"}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          {parentId === postId && hasLoaded && children.length === 0 && !isLoading && (
-            <div className={styles.emptyReplies}>No replies yet.</div>
-          )}
-          {parentId === postId && (hasNext || isLoading) && (
-            <div ref={registerLoadMoreRef(parentId)} className="loadMoreSentinel">
-              {isLoading ? "Loading more replies..." : "Scroll for more replies"}
-            </div>
-          )}
-        </div>
-      );
+  const handleReplyTo = useCallback(
+    (target: PostView) => {
+      setReplyTargetId(target.id);
+      composerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     },
-    [
-      childrenByParent,
-      handleReplyTo,
-      hasNextByParent,
-      isAuthed,
-      loadChildren,
-      loadingByParent,
-      pending,
-      postId,
-      registerLoadMoreRef,
-      toggleBookmark,
-      toggleLike,
-      toggleRepost,
-    ],
+    [setReplyTargetId],
   );
 
   const emptyState = useMemo(() => {
@@ -600,16 +178,7 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
 
   return (
     <div className={styles.page}>
-      <header className={styles.nav}>
-        <Link href="/feed" className={styles.back} scroll={false}>
-          {"<- Back to feed"}
-        </Link>
-        <div className={styles.navMeta}>
-          <span>Thread</span>
-          <span className={styles.dot} />
-          <span>{post?.replyCount ?? 0} replies</span>
-        </div>
-      </header>
+      <PostDetailHeader replyCount={post?.replyCount ?? 0} />
 
       {emptyState ? (
         <StatePanel
@@ -620,189 +189,59 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
         />
       ) : (
         post && (
-          <div className={styles.threadRail}>
-            <PostCard
-              post={post}
-              variant="thread"
-              onLike={isAuthed ? toggleLike : undefined}
-              onBookmark={isAuthed ? toggleBookmark : undefined}
-              onRepost={isAuthed ? toggleRepost : undefined}
-              pending={{
-                like: pending.has(`like:${post.id}`),
-                bookmark: pending.has(`bookmark:${post.id}`),
-                repost: pending.has(`repost:${post.id}`),
-              }}
-              showActions={isAuthed}
-            />
-          </div>
+          <PostDetailMainPost
+            post={post}
+            isAuthed={isAuthed}
+            pending={pending}
+            onLike={toggleLike}
+            onBookmark={toggleBookmark}
+            onRepost={toggleRepost}
+          />
         )
       )}
 
-      {!isAuthed && (
-        <div className={styles.notice}>
-          <p>Sign in to reply and interact with this thread.</p>
-          <div className={styles.noticeActions}>
-            <Link href="/login">Log in</Link>
-            <Link href="/register">Create account</Link>
-          </div>
-        </div>
-      )}
+      {!isAuthed && <PostDetailAuthNotice />}
 
       {isAuthed && post && (
         <div
           className={`${styles.composeStack} ${styles.threadRail} ${styles.threadOffset}`}
         >
-          <div className={styles.quoteBlock}>
-            <button
-              type="button"
-              className={styles.quoteToggle}
-              onClick={() => setQuoteOpen((prev) => !prev)}
-            >
-              {quoteOpen ? "Cancel quote" : "Quote this post"}
-            </button>
-            {quoteOpen && (
-              <form className={styles.quoteForm} onSubmit={submitQuote}>
-                <div className={styles.composerControls}>
-                  <label className={styles.control}>
-                    <span>Visibility</span>
-                    <select
-                      value={quoteVisibility}
-                      onChange={(event) =>
-                        setQuoteVisibility(event.target.value as PostVisibility)
-                      }
-                    >
-                      {visibilityOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className={styles.control}>
-                    <span>Replies</span>
-                    <select
-                      value={quoteReplyPolicy}
-                      onChange={(event) =>
-                        setQuoteReplyPolicy(event.target.value as ReplyPolicy)
-                      }
-                    >
-                      {replyPolicyOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className={styles.control}>
-                    <span>Image</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(event) =>
-                        handleImageChange(event, setQuoteImageFile)
-                      }
-                    />
-                  </label>
-                </div>
-                {quoteImagePreview && (
-                  <div className={styles.imagePreview}>
-                    <img src={quoteImagePreview} alt="" />
-                    <button type="button" onClick={clearQuoteImage}>
-                      Remove image
-                    </button>
-                  </div>
-                )}
-                <textarea
-                  value={quoteDraft}
-                  onChange={(event) => setQuoteDraft(event.target.value)}
-                  placeholder="Add a comment (optional)"
-                  maxLength={280}
-                />
-                <div className={styles.composerFooter}>
-                  <span>{quoteDraft.trim().length}/280</span>
-                  <button type="submit" disabled={quoteLoading}>
-                    {quoteLoading ? "Posting..." : "Post quote"}
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-          <form
-            ref={composerRef}
-            className={`${styles.composer} ${styles.composerCard}`}
+          <PostDetailQuoteComposer
+            isOpen={quoteOpen}
+            onToggle={() => setQuoteOpen((prev) => !prev)}
+            quoteDraft={quoteDraft}
+            onQuoteDraftChange={setQuoteDraft}
+            quoteVisibility={quoteVisibility}
+            onQuoteVisibilityChange={setQuoteVisibility}
+            quoteReplyPolicy={quoteReplyPolicy}
+            onQuoteReplyPolicyChange={setQuoteReplyPolicy}
+            quoteImagePreview={quoteImagePreview}
+            onQuoteImageChange={handleQuoteImageChange}
+            onClearQuoteImage={clearQuoteImage}
+            quoteLoading={quoteLoading}
+            onSubmit={submitQuote}
+            visibilityOptions={visibilityOptions}
+            replyPolicyOptions={replyPolicyOptions}
+          />
+          <PostDetailReplyComposer
+            composerRef={composerRef}
+            replyLabel={replyLabel}
+            showReplyToThread={replyTargetId !== postId}
+            onReplyToThread={() => setReplyTargetId(postId)}
+            replyVisibility={replyVisibility}
+            onReplyVisibilityChange={setReplyVisibility}
+            replyPolicy={replyPolicy}
+            onReplyPolicyChange={setReplyPolicy}
+            replyImagePreview={replyImagePreview}
+            onReplyImageChange={handleReplyImageChange}
+            onClearReplyImage={clearReplyImage}
+            replyDraft={replyDraft}
+            onReplyDraftChange={setReplyDraft}
+            canReply={canReply}
             onSubmit={submitReply}
-          >
-            <div className={styles.replyMeta}>
-              <span>{replyLabel}</span>
-              {replyTarget !== postId && (
-                <button type="button" onClick={() => setReplyTargetId(postId)}>
-                  Reply to thread
-                </button>
-              )}
-            </div>
-            <div className={styles.composerControls}>
-              <label className={styles.control}>
-                <span>Visibility</span>
-                <select
-                  value={replyVisibility}
-                  onChange={(event) =>
-                    setReplyVisibility(event.target.value as PostVisibility)
-                  }
-                >
-                  {visibilityOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className={styles.control}>
-                <span>Replies</span>
-                <select
-                  value={replyPolicy}
-                  onChange={(event) =>
-                    setReplyPolicy(event.target.value as ReplyPolicy)
-                  }
-                >
-                  {replyPolicyOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className={styles.control}>
-                <span>Image</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) =>
-                    handleImageChange(event, setReplyImageFile)
-                  }
-                />
-              </label>
-            </div>
-            {replyImagePreview && (
-              <div className={styles.imagePreview}>
-                <img src={replyImagePreview} alt="" />
-                <button type="button" onClick={clearReplyImage}>
-                  Remove image
-                </button>
-              </div>
-            )}
-            <textarea
-              value={replyDraft}
-              onChange={(event) => setReplyDraft(event.target.value)}
-              placeholder="Write a reply..."
-              maxLength={280}
-            />
-            <div className={styles.composerFooter}>
-              <span>{replyDraft.trim().length}/280</span>
-              <button type="submit" disabled={!canReply}>
-                Reply
-              </button>
-            </div>
-          </form>
+            visibilityOptions={visibilityOptions}
+            replyPolicyOptions={replyPolicyOptions}
+          />
         </div>
       )}
 
@@ -810,15 +249,24 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
         <StatePanel variant="error" title="Action failed" message={error} />
       )}
 
-      <section className={styles.replies}>
-        <div className={styles.repliesHeader}>
-          <h2>Replies</h2>
-          <span>{post?.replyCount ?? 0}</span>
-        </div>
-        <div className={`${styles.replyList} ${styles.threadRail}`}>
-          {renderReplies(postId, 0)}
-        </div>
-      </section>
+      <PostDetailReplies replyCount={post?.replyCount ?? 0}>
+        <PostDetailRepliesTree
+          postId={postId}
+          childrenByParent={childrenByParent}
+          collapsedByParent={collapsedByParent}
+          hasNextByParent={hasNextByParent}
+          loadingByParent={loadingByParent}
+          registerLoadMoreRef={registerLoadMoreRef}
+          isAuthed={isAuthed}
+          pending={pending}
+          onLike={toggleLike}
+          onBookmark={toggleBookmark}
+          onRepost={toggleRepost}
+          onReply={isAuthed ? handleReplyTo : undefined}
+          onLoadReplies={loadChildren}
+          onSetCollapsed={setCollapsed}
+        />
+      </PostDetailReplies>
     </div>
   );
 }

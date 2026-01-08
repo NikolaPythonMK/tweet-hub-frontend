@@ -1,122 +1,56 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { listNotifications, markNotificationRead } from "@/lib/api/notifications";
-import {
-  Bell,
-  Heart,
-  MessageCircle,
-  Repeat2,
-  Quote,
-  UserPlus,
-} from "lucide-react";
 import { getErrorMessage } from "@/lib/api/client";
 import type { Notification } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/useSession";
 import { useInfiniteScroll } from "@/lib/hooks/useInfiniteScroll";
-import { formatDate } from "@/lib/format";
+import { usePendingActions } from "@/lib/hooks/usePendingActions";
 import StatePanel from "@/components/state/StatePanel";
+import NotificationsFilters, {
+  type NotificationsFilterKey,
+} from "./components/NotificationsFilters";
+import NotificationsHeader from "./components/NotificationsHeader";
+import NotificationsList from "./components/NotificationsList";
+import { useNotificationsList } from "./hooks/useNotificationsList";
 import styles from "./NotificationsView.module.css";
-
-type FilterKey = "all" | "unread";
-
-const notificationLabel: Record<Notification["type"], string> = {
-  LIKE: "liked your post",
-  REPLY: "replied to your post",
-  FOLLOW: "followed you",
-  REPOST: "reposted your post",
-  QUOTE: "quoted your post",
-  MENTION: "mentioned you",
-};
-
-const notificationIcon: Record<
-  Notification["type"],
-  React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>
-> = {
-  LIKE: Heart,
-  REPLY: MessageCircle,
-  FOLLOW: UserPlus,
-  REPOST: Repeat2,
-  QUOTE: Quote,
-  MENTION: Bell,
-};
 
 export default function NotificationsView() {
   const router = useRouter();
   const { user, loading: sessionLoading } = useSession();
-  const [items, setItems] = useState<Notification[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [hasNext, setHasNext] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [filter, setFilter] = useState<FilterKey>("all");
-  const [pending, setPending] = useState<Set<string>>(new Set());
+  const [filter, setFilter] = useState<NotificationsFilterKey>("all");
+  const { pending, runAction } = usePendingActions({
+    onError: (err) => setError(getErrorMessage(err)),
+    onStart: () => setError(""),
+  });
 
   const unreadOnly = filter === "unread";
 
-  const loadNotifications = useCallback(
-    async (reset: boolean, cursorOverride?: string | null) => {
-      setLoading(true);
-      setError("");
-      try {
-        const nextCursor = reset ? undefined : cursorOverride ?? undefined;
-        const response = await listNotifications({
-          limit: 15,
-          cursor: nextCursor,
-          unreadOnly,
-        });
-        setItems((prev) => (reset ? response.items : [...prev, ...response.items]));
-        setCursor(response.nextCursor ?? null);
-        setHasNext(response.hasNext);
-      } catch (err) {
-        setError(getErrorMessage(err));
-      } finally {
-        setLoading(false);
-      }
-    },
-    [unreadOnly],
-  );
-
-  useEffect(() => {
-    if (sessionLoading) return;
-    if (!user) return;
-    setItems([]);
-    setCursor(null);
-    setHasNext(false);
-    void loadNotifications(true, null);
-  }, [loadNotifications, sessionLoading, user, filter]);
+  const {
+    items: notificationItems,
+    hasNext,
+    loading,
+    loadMore,
+    markRead,
+  } = useNotificationsList({
+    userId: user?.id,
+    sessionLoading,
+    unreadOnly,
+    runAction,
+    onError: (err) => setError(getErrorMessage(err)),
+    onStart: () => setError(""),
+  });
 
   const observeLoadMore = useInfiniteScroll<HTMLDivElement>({
     enabled: !!user && hasNext && !loading,
-    deps: [cursor, hasNext, loading, items.length, filter],
+    deps: [hasNext, loading, notificationItems.length, filter],
     onIntersect: () => {
-      void loadNotifications(false, cursor);
+      void loadMore();
     },
   });
-
-  const markRead = useCallback(async (notification: Notification) => {
-    if (notification.readAt) return;
-    setPending((prev) => new Set(prev).add(notification.id));
-    setError("");
-    try {
-      const updated = await markNotificationRead(notification.id);
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === updated.id ? { ...item, ...updated, actor: updated.actor ?? item.actor } : item,
-        ),
-      );
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setPending((prev) => {
-        const next = new Set(prev);
-        next.delete(notification.id);
-        return next;
-      });
-    }
-  }, []);
 
   const handleOpen = useCallback(
     async (notification: Notification) => {
@@ -140,7 +74,7 @@ export default function NotificationsView() {
         message: "Pulling your latest updates.",
       };
     }
-    if (!items.length) {
+    if (!notificationItems.length) {
       return {
         variant: "empty" as const,
         title: unreadOnly ? "No unread notifications" : "No notifications yet",
@@ -150,7 +84,7 @@ export default function NotificationsView() {
       };
     }
     return null;
-  }, [items.length, loading, unreadOnly]);
+  }, [loading, notificationItems.length, unreadOnly]);
 
   if (sessionLoading) {
     return (
@@ -184,33 +118,9 @@ export default function NotificationsView() {
 
   return (
     <div className={styles.page}>
-      <header className={styles.nav}>
-        <Link href="/feed" className={styles.back}>
-          {"<- Back to feed"}
-        </Link>
-        <div className={styles.navMeta}>Notifications</div>
-      </header>
+      <NotificationsHeader title="Notifications" />
 
-      <div className={styles.filters}>
-        <button
-          type="button"
-          className={`${styles.filterButton} ${
-            filter === "all" ? styles.activeFilter : ""
-          }`}
-          onClick={() => setFilter("all")}
-        >
-          All
-        </button>
-        <button
-          type="button"
-          className={`${styles.filterButton} ${
-            filter === "unread" ? styles.activeFilter : ""
-          }`}
-          onClick={() => setFilter("unread")}
-        >
-          Unread
-        </button>
-      </div>
+      <NotificationsFilters filter={filter} onChange={setFilter} />
 
       {error && (
         <StatePanel variant="error" title="Unable to load notifications" message={error} />
@@ -223,73 +133,15 @@ export default function NotificationsView() {
           message={emptyState.message}
         />
       ) : (
-        <div className={styles.list}>
-          {items.map((notification) => {
-            const isUnread = !notification.readAt;
-            const label = notificationLabel[notification.type];
-            const Icon = notificationIcon[notification.type];
-            const handle =
-              notification.actor?.username ?? notification.actorId.slice(0, 8);
-            const displayName =
-              notification.actor?.displayName ?? notification.actorId.slice(0, 8);
-            const initialsSource = notification.actor?.displayName ?? handle;
-            const avatarLabel = initialsSource.slice(0, 2).toUpperCase();
-            const avatarUrl = notification.actor?.avatarUrl
-              ? notification.actor.avatarUrl.startsWith("/")
-                ? `/api${notification.actor.avatarUrl}`
-                : notification.actor.avatarUrl
-              : null;
-            return (
-              <div
-                key={notification.id}
-                className={`${styles.item} ${isUnread ? styles.unread : ""}`}
-              >
-                <button
-                  className={styles.card}
-                  type="button"
-                  onClick={() => handleOpen(notification)}
-                >
-                  <div className={styles.avatar}>
-                    {avatarUrl ? (
-                      <img src={avatarUrl} alt="" className={styles.avatarImage} />
-                    ) : (
-                      avatarLabel
-                    )}
-                  </div>
-                  <div className={styles.content}>
-                    <div className={styles.titleRow}>
-                      <span className={styles.handle}>{displayName}</span>
-                      <span className={styles.handleMuted}>@{handle}</span>
-                      <span className={styles.dot} />
-                      <span className={styles.time}>
-                        {formatDate(notification.createdAt)}
-                      </span>
-                    </div>
-                    <div className={styles.body}>
-                      <span className={styles.typeIcon}>
-                        <Icon aria-hidden="true" />
-                      </span>
-                      {label}
-                    </div>
-                  </div>
-                </button>
-                {isUnread && (
-                  <button
-                    type="button"
-                    className={styles.markRead}
-                    onClick={() => markRead(notification)}
-                    disabled={pending.has(notification.id)}
-                  >
-                    {pending.has(notification.id) ? "Marking..." : "Mark read"}
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        <NotificationsList
+          notifications={notificationItems}
+          pending={pending}
+          onOpen={handleOpen}
+          onMarkRead={markRead}
+        />
       )}
 
-      {(hasNext || loading) && items.length > 0 && (
+      {(hasNext || loading) && notificationItems.length > 0 && (
         <div ref={observeLoadMore} className="loadMoreSentinel">
           {loading ? "Loading more notifications..." : "Scroll for more"}
         </div>

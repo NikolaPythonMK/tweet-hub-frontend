@@ -8,5 +8,5 @@ type UserProfilePageProps = {
 
 export default async function UserProfilePage({ params }: UserProfilePageProps) {
   const { username } = await params;
-  return <ProfileView username={username} />;
+  return <ProfileView key={username} username={username} />;
 }
