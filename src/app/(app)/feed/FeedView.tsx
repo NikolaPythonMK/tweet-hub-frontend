@@ -7,6 +7,7 @@ import type { PostVisibility, ReplyPolicy } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/useSession";
 import { useInfiniteScroll } from "@/lib/hooks/useInfiniteScroll";
 import { usePendingActions } from "@/lib/hooks/usePendingActions";
+import { useSyncSessionUserPosts } from "@/lib/hooks/useSyncSessionUserPosts";
 import { usePostActions } from "@/lib/hooks/usePostActions";
 import PostListHeader from "@/components/posts/PostListHeader";
 import PostTimeRangeFilter from "@/components/posts/PostTimeRangeFilter";
@@ -101,6 +102,8 @@ export default function FeedView() {
     onPostCreated: (post) => setPosts((prev) => [post, ...prev]),
     setError,
   });
+
+  useSyncSessionUserPosts(user, setPosts);
 
   const observeLoadMore = useInfiniteScroll<HTMLDivElement>({
     enabled: !!user && hasNext && !loadingPosts,
